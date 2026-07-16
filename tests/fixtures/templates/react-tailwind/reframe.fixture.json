@@ -1,0 +1,11 @@
+{
+  "id": "react-tailwind",
+  "framework": "react-vite",
+  "styling": "tailwind",
+  "packageManager": "npm",
+  "devCommand": ["npm", "run", "dev"],
+  "expectedPath": "/",
+  "requiredFiles": ["index.html", "package.json", "tailwind.config.js", "src/App.jsx", "src/style.css"],
+  "allowedChangePaths": ["src/App.jsx", "src/style.css"],
+  "editableElementFingerprints": ["#card-annual"]
+}

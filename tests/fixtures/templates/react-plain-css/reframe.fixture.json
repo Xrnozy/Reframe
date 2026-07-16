@@ -1,0 +1,11 @@
+{
+  "id": "react-plain-css",
+  "framework": "react-vite",
+  "styling": "plain-css",
+  "packageManager": "npm",
+  "devCommand": ["npm", "run", "dev"],
+  "expectedPath": "/",
+  "requiredFiles": ["index.html", "package.json", "src/App.jsx", "src/style.css"],
+  "allowedChangePaths": ["src/App.jsx", "src/style.css"],
+  "editableElementFingerprints": ["#card-annual"]
+}

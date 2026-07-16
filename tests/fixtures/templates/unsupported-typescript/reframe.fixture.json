@@ -1,0 +1,11 @@
+{
+  "id": "unsupported-typescript",
+  "framework": "react-vite-typescript",
+  "styling": "plain-css",
+  "packageManager": "npm",
+  "devCommand": ["npm", "run", "dev"],
+  "expectedPath": "/",
+  "requiredFiles": ["package.json", "src/App.tsx"],
+  "allowedChangePaths": [],
+  "editableElementFingerprints": []
+}

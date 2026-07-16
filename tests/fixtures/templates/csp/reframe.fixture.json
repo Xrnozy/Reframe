@@ -1,0 +1,11 @@
+{
+  "id": "csp",
+  "framework": "vanilla",
+  "styling": "plain-css",
+  "packageManager": null,
+  "devCommand": ["vite"],
+  "expectedPath": "/",
+  "requiredFiles": ["index.html"],
+  "allowedChangePaths": ["index.html"],
+  "editableElementFingerprints": ["#csp-target"]
+}

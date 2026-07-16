@@ -1,0 +1,11 @@
+{
+  "id": "no-git",
+  "framework": "vanilla",
+  "styling": "plain-css",
+  "packageManager": null,
+  "devCommand": ["vite"],
+  "expectedPath": "/",
+  "requiredFiles": ["index.html"],
+  "allowedChangePaths": ["index.html"],
+  "editableElementFingerprints": ["#no-git-target"]
+}

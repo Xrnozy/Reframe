@@ -1,0 +1,11 @@
+{
+  "id": "react-css-modules",
+  "framework": "react-vite",
+  "styling": "css-modules",
+  "packageManager": "npm",
+  "devCommand": ["npm", "run", "dev"],
+  "expectedPath": "/",
+  "requiredFiles": ["index.html", "package.json", "src/App.jsx", "src/Card.module.css"],
+  "allowedChangePaths": ["src/App.jsx", "src/Card.module.css"],
+  "editableElementFingerprints": ["#card-annual"]
+}

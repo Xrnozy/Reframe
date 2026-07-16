@@ -1,0 +1,11 @@
+{
+  "id": "crashing-server",
+  "framework": "custom",
+  "styling": "plain-css",
+  "packageManager": null,
+  "devCommand": ["node", "server.mjs"],
+  "expectedPath": "/",
+  "requiredFiles": ["server.mjs"],
+  "allowedChangePaths": [],
+  "editableElementFingerprints": []
+}

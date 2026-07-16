@@ -1,0 +1,11 @@
+{
+  "id": "unknown-scripts",
+  "framework": "unknown",
+  "styling": "plain-css",
+  "packageManager": "npm",
+  "devCommand": [],
+  "expectedPath": "/",
+  "requiredFiles": ["package.json"],
+  "allowedChangePaths": [],
+  "editableElementFingerprints": []
+}

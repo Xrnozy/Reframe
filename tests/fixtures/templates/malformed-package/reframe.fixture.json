@@ -1,0 +1,11 @@
+{
+  "id": "malformed-package",
+  "framework": "unknown",
+  "styling": "unknown",
+  "packageManager": "npm",
+  "devCommand": [],
+  "expectedPath": "/",
+  "requiredFiles": ["package.json"],
+  "allowedChangePaths": [],
+  "editableElementFingerprints": []
+}

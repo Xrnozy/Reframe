@@ -1,0 +1,11 @@
+{
+  "id": "unsupported-vue",
+  "framework": "vue",
+  "styling": "plain-css",
+  "packageManager": "npm",
+  "devCommand": ["npm", "run", "dev"],
+  "expectedPath": "/",
+  "requiredFiles": ["package.json", "src/App.vue"],
+  "allowedChangePaths": [],
+  "editableElementFingerprints": []
+}

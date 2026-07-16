@@ -1,0 +1,11 @@
+:root { font-family: Arial, sans-serif; color: #18202b; background: #f7f8fb; }
+* { box-sizing: border-box; }
+body { margin: 0; }
+#site-header, #site-footer { display: flex; justify-content: space-between; padding: 20px 32px; background: #ffffff; }
+#hero { max-width: 760px; margin: 64px auto 40px; padding: 0 24px; text-align: center; }
+.eyebrow { color: #5b45d6; font-weight: 700; }
+#primary-cta { border: 0; border-radius: 10px; padding: 12px 18px; color: white; background: #5b45d6; }
+#pricing-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 20px; padding: 24px; }
+#pricing-grid article { width: 280px; padding: 24px; border: 1px solid #dce0e8; border-radius: 16px; background: white; }
+#card-annual { width: 320px; border-color: #5b45d6; }
+#site-footer { justify-content: center; margin-top: 48px; }

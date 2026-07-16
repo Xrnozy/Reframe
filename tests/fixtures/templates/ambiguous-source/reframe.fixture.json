@@ -1,0 +1,11 @@
+{
+  "id": "ambiguous-source",
+  "framework": "vanilla",
+  "styling": "plain-css",
+  "packageManager": null,
+  "devCommand": ["vite"],
+  "expectedPath": "/",
+  "requiredFiles": ["index.html", "a.css", "b.css"],
+  "allowedChangePaths": [],
+  "editableElementFingerprints": []
+}

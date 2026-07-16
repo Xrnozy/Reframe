@@ -1,0 +1,35 @@
+{
+  "name": "reframe-workspace",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Reframe development workspace",
+  "workspaces": [
+    "packages/*",
+    "demo/*"
+  ],
+  "engines": {
+    "node": ">=22 <25"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "tsc -b --clean",
+    "test:unit": "vitest run --pool=forks --maxWorkers=1 --no-file-parallelism --testTimeout=30000 --hookTimeout=30000 tests/unit",
+    "test:integration": "vitest run --pool=forks --maxWorkers=1 --no-file-parallelism --testTimeout=30000 --hookTimeout=30000 tests/integration",
+    "test:performance": "vitest run --pool=forks --maxWorkers=1 --no-file-parallelism --testTimeout=30000 --hookTimeout=30000 tests/performance",
+    "test:e2e": "playwright test",
+    "test:phase0": "node scripts/run-phase0-tests.mjs",
+    "verify:fixtures": "vitest run tests/unit/phase-0-manifests.test.ts",
+    "verify:leaks": "node scripts/verify-no-process-leaks.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.55.0",
+    "@types/node": "^24.0.0",
+    "@vitejs/plugin-react": "^4.6.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "typescript": "^5.8.3",
+    "vite": "^7.0.0",
+    "vitest": "^3.2.4"
+  }
+}

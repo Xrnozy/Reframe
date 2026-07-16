@@ -1,0 +1,11 @@
+{
+  "id": "vanilla",
+  "framework": "vanilla",
+  "styling": "plain-css",
+  "packageManager": null,
+  "devCommand": ["vite"],
+  "expectedPath": "/",
+  "requiredFiles": ["index.html", "style.css", "script.js"],
+  "allowedChangePaths": ["index.html", "style.css", "script.js"],
+  "editableElementFingerprints": ["#card-annual"]
+}
