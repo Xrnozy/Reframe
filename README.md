@@ -1,21 +1,69 @@
+<div align="center">
+
 # Reframe
 
-**Visual development for local web projects — edit the running site in the browser, write changes to real source files.**
+> **The browser becomes an intelligent visual interface for the real codebase.**
 
-![Node](https://img.shields.io/badge/node-%3E%3D22%20%3C25-339933?style=flat-square&logo=node.js&logoColor=white)
-![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?style=flat-square&logo=typescript&logoColor=white)
-![npm workspaces](https://img.shields.io/badge/npm-workspaces-CB3837?style=flat-square&logo=npm&logoColor=white)
-![Playwright](https://img.shields.io/badge/Playwright-1.x-2EAD33?style=flat-square&logo=playwright&logoColor=white)
-![Vitest](https://img.shields.io/badge/Vitest-3.x-6E9F18?style=flat-square&logo=vitest&logoColor=white)
-![CI](https://img.shields.io/badge/CI-GitHub_Actions-2088FF?style=flat-square&logo=githubactions&logoColor=white)
-![OpenAI Build Week](https://img.shields.io/badge/OpenAI-Build_Week-412991?style=flat-square&logo=openai&logoColor=white)
+Visual development for local web projects — edit the running site in the browser, write changes to real source files.
 
-Reframe is an AI-native visual development environment for local websites. It injects an editing UI into your running dev server, maps rendered elements back to source files, and applies approved visual edits directly in your repository — no browser extension required.
+[![Node](https://img.shields.io/badge/node-%3E%3D22%20%3C25-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![npm workspaces](https://img.shields.io/badge/npm-workspaces-CB3837?style=flat-square&logo=npm&logoColor=white)](https://docs.npmjs.com/cli/v10/using-npm/workspaces)
+[![Playwright](https://img.shields.io/badge/Playwright-1.x-2EAD33?style=flat-square&logo=playwright&logoColor=white)](https://playwright.dev/)
+[![Vitest](https://img.shields.io/badge/Vitest-3.x-6E9F18?style=flat-square&logo=vitest&logoColor=white)](https://vitest.dev/)
+[![CI](https://img.shields.io/badge/CI-GitHub_Actions-2088FF?style=flat-square&logo=githubactions&logoColor=white)](.github/workflows/ci.yml)
+[![OpenAI Build Week](https://img.shields.io/badge/OpenAI-Build_Week-412991?style=flat-square&logo=openai&logoColor=white)](https://openai.devpost.com)
 
-<!-- Add screenshot -->
+</div>
+
+---
+
+## About
+
+Reframe is an AI-native visual development environment for **local** web projects. Run `npx reframe` in your project folder and Reframe detects your framework, starts or attaches to your dev server, injects an editing UI through a local proxy, and opens the site in your browser — no browser extension, VS Code extension, or proprietary IDE required.
+
+The rendered page is the editing surface; **your repository remains the source of truth**. Select an element, resize or restyle it, describe structural changes in natural language, preview alternatives in Explore Mode, and approve edits that persist to the correct source files. Reframe maps DOM nodes back to components and files, sends structured context to Codex (not just a CSS selector), and records visual history with screenshots and local Git checkpoints so every accepted change is reviewable and reversible.
+
+Unlike design tools that produce mockups, or AI generators that spin up isolated sandboxes, Reframe sits **inside your existing workflow**: your dev server, hot reload, routing, and Git history all stay intact. Reframe is the translation layer between what you see in the browser and maintainable changes in your codebase.
+
+---
+
+## Why Reframe?
+
+Most UI tools fall into two camps: **design canvases** that never touch your repo, or **AI generators** that write new files in a separate environment. Reframe is built for developers who already have a project running locally and want visual editing without losing the connection to source code, design rules, and version control.
+
+| Capability | Figma / design tools | AI UI generators (v0, Bolt, Claude artifacts) | Reframe |
+| --- | :---: | :---: | :---: |
+| Edits your running local app | No | No — separate sandbox or new project | **Yes** |
+| Uses your dev server and HMR | No | No — own environment | **Yes** |
+| Maps selections to existing source files | No | Generates new files, not your app | **Yes** (supported frameworks) |
+| Writes approved changes to your repo | No | Exports or copies code manually | **Yes** (supported frameworks) |
+| Preserves project design system | Manual handoff | Often invents new styles | **Design DNA** — detected tokens, components, and rules |
+| AI gets structured browser + repo context | N/A | Prompt + screenshot at best | **Element Context Packets** — component, source location, Design DNA, errors |
+| Visual history tied to real checkpoints | Version history on mockups | Limited or session-only | **Visual Time Machine** — screenshots, prompts, files, Git checkpoints |
+| Preview without touching source | Yes | Yes | **Explore Mode** |
+| No browser extension required | N/A | Varies | **Yes** — local proxy injection |
+| Requires your codebase | No | No | **Yes** — by design |
+
+**Framework honesty:** Reframe fully supports source writes for React + Vite, React + Vite + TypeScript, vanilla HTML/CSS, and Laravel (Vite assets; Blade read-only). Next.js, Nuxt, Vue, Svelte, Angular, and Astro are **preview-only** today — you can inspect, explore, and use visual history, but source writes are not yet reliable for those stacks.
+
+---
+
+## Ideal for
+
+- Frontend and full-stack developers iterating on a local dev server who want direct visual feedback without leaving the codebase
+- Teams where designers and developers need comments and edits anchored to **real components**, not stale mockups
+- Hackathon and prototype workflows — one command, real files, reversible changes
+- Codex users who want repository-aware, design-system-aware context instead of one-off generation
+- Anyone maintaining a component library or design system who needs edits to respect existing tokens and patterns
+
+---
 
 ## Table of Contents
 
+- [About](#about)
+- [Why Reframe?](#why-reframe)
+- [Ideal for](#ideal-for)
 - [Features](#features)
 - [Tech Stack](#tech-stack)
 - [Architecture](#architecture)
@@ -26,14 +74,18 @@ Reframe is an AI-native visual development environment for local websites. It in
 - [Development](#development)
 - [Requirements](#requirements)
 
+---
+
 ## Features
 
 - **Visual editing** — select elements, resize and restyle them, and describe structural changes in natural language.
-- **Source mapping** — link DOM elements to real source locations and persist approved edits to disk.
-- **Local history** — review and restore changes through visual history without leaving your codebase.
+- **Source mapping** — link DOM elements to real source locations; show mapping confidence (exact, probable, ambiguous) before writing.
+- **Direct Edit + Codex Edit** — deterministic style and layout changes locally; structural changes through Codex with review before accept.
+- **Explore Mode** — experiment in the browser without modifying source files until you choose to implement.
+- **Design DNA** — analyze and persist the project's design language (tokens, components, rules) for consistent edits and AI context.
+- **Visual Time Machine** — screenshot-first history with prompts, changed files, and local Git checkpoints; restore any accepted state.
 - **Framework detection** — auto-detect project type from `package.json`, config files, and directory layout.
-- **Design DNA** — analyze and persist a project's design language from the CLI.
-- **No extension** — runs through a local proxy; your app code stays untouched.
+- **No extension** — runs through a local proxy; your app source stays untouched until you approve a change.
 
 ## Tech Stack
 
@@ -62,6 +114,8 @@ Reframe auto-detects the project from `package.json`, config files, and director
 
 Override detection with `--framework` when needed.
 
+---
+
 ## Architecture
 
 ```mermaid
@@ -83,12 +137,14 @@ flowchart LR
 
 Press `Ctrl+C` to stop Reframe and every server it owns.
 
+---
+
 ## Installation
 
 ### From source
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/Xrnozy/Reframe.git
 cd reframe
 npm install
 npm run build
@@ -104,6 +160,8 @@ npm install /path/to/reframe-0.0.0.tgz
 # Global install
 npm install -g /path/to/reframe-0.0.0.tgz
 ```
+
+---
 
 ## Quick Start
 
@@ -121,6 +179,8 @@ npx reframe
 ```
 
 Other demos: `demo/vanilla-demo` (plain HTML/CSS), `demo/react-tailwind-demo` (React + Tailwind).
+
+---
 
 ## Usage
 
@@ -178,6 +238,8 @@ npx reframe dna status
 
 Add `--agents` to `dna write` to update the Design System section in the project's `AGENTS.md`.
 
+---
+
 ## CLI Reference
 
 ### Commands
@@ -205,6 +267,8 @@ Add `--agents` to `dna write` to update the Design System section in the project
 
 Framework values: `react-vite`, `react-vite-typescript`, `next`, `nuxt`, `angular`, `astro`, `vue`, `svelte`, `sveltekit`, `laravel`, `vanilla`.
 
+---
+
 ## Development
 
 ### npm scripts (repo root)
@@ -222,6 +286,8 @@ Framework values: `react-vite`, `react-vite-typescript`, `next`, `nuxt`, `angula
 | `npm run verify:leaks` | Check for orphaned processes/ports |
 | `npm run test:phase0` … `test:phase12` | Phase-scoped test suites |
 
+---
+
 ## Requirements
 
 - **Node.js** `>=22` and `<25`
@@ -229,4 +295,8 @@ Framework values: `react-vite`, `react-vite-typescript`, `next`, `nuxt`, `angula
 
 ---
 
-Built for [OpenAI Build Week](https://openai.com/).
+<div align="center">
+
+Built for [OpenAI Build Week](https://openai.devpost.com)
+
+</div>
