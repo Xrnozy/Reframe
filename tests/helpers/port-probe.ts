@@ -1,4 +1,5 @@
 import { createServer, type Server } from "node:net";
+import { randomInt } from "node:crypto";
 
 export interface PortReservation {
   readonly port: number;
@@ -6,22 +7,16 @@ export interface PortReservation {
 }
 
 export async function reservePort(host = "127.0.0.1"): Promise<PortReservation> {
-  const server = createServer();
-  await new Promise<void>((resolve, reject) => {
-    server.once("error", reject);
-    server.listen(0, host, () => resolve());
-  });
-  const address = server.address();
-  if (!address || typeof address === "string") throw new Error("failed to reserve TCP port");
-  let released = false;
-  return {
-    port: address.port,
-    async release() {
-      if (released) return;
-      released = true;
-      await closeServer(server);
-    },
-  };
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const server = createServer();
+    const opened = await new Promise<boolean>((resolve) => { server.once("error", () => resolve(false)); server.listen(randomInt(10_000, 60_000), host, () => resolve(true)); });
+    if (!opened) { if (server.listening) await closeServer(server); continue; }
+    const address = server.address();
+    if (!address || typeof address === "string") { await closeServer(server); continue; }
+    let released = false;
+    return { port: address.port, async release() { if (released) return; released = true; await closeServer(server); } };
+  }
+  throw new Error("failed to reserve a non-well-known TCP port");
 }
 
 async function closeServer(server: Server): Promise<void> {

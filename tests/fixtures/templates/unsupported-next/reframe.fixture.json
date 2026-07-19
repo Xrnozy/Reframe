@@ -1,0 +1,11 @@
+{
+  "id": "unsupported-next",
+  "framework": "next",
+  "styling": "unknown",
+  "packageManager": "npm",
+  "devCommand": ["npm", "run", "dev"],
+  "expectedPath": "/",
+  "requiredFiles": ["package.json"],
+  "allowedChangePaths": [],
+  "editableElementFingerprints": []
+}

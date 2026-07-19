@@ -1,4 +1,4 @@
-import { cp, mkdtemp, rm } from "node:fs/promises";
+import { cp, mkdtemp, realpath, rm, rmdir } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { validateFixture, type FixtureManifest } from "./fixture-manifest.js";
@@ -17,10 +17,17 @@ export interface FixtureCopyOptions {
   beforeFinalize?: (copyRoot: string) => Promise<void>;
 }
 
+async function removeFixture(root: string): Promise<void> {
+  const nodeModules = path.join(root, "node_modules");
+  await rm(path.join(nodeModules, ".vite"), { recursive: true, force: true, maxRetries: 30, retryDelay: 50 });
+  await rmdir(nodeModules).catch(() => undefined);
+  await rm(root, { recursive: true, force: true, maxRetries: 30, retryDelay: 50 });
+}
+
 export async function createFixtureCopy(templateRoot: string, options: FixtureCopyOptions = {}): Promise<FixtureCopy> {
   await validateFixture(templateRoot);
   const base = options.baseDirectory ?? os.tmpdir();
-  const root = await mkdtemp(path.join(base, "reframe phase0 ü-"));
+  const root = await realpath(await mkdtemp(path.join(base, "reframe phase0 \u00fc-")));
   let reservation: PortReservation | undefined;
   try {
     await cp(templateRoot, root, { recursive: true, force: false, preserveTimestamps: true });
@@ -37,12 +44,12 @@ export async function createFixtureCopy(templateRoot: string, options: FixtureCo
         if (cleaned) return;
         cleaned = true;
         await reservation!.release();
-        await rm(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });
+        await removeFixture(root);
       },
     };
   } catch (error) {
     await reservation?.release().catch(() => undefined);
-    await rm(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 }).catch(() => undefined);
+    await removeFixture(root).catch(() => undefined);
     throw error;
   }
 }

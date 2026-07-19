@@ -1,0 +1,11 @@
+{
+  "id": "laravel-tailwind",
+  "framework": "laravel",
+  "styling": "tailwind",
+  "packageManager": "npm",
+  "devCommand": ["npm", "run", "dev"],
+  "expectedPath": "/",
+  "requiredFiles": ["artisan", "composer.json", "package.json", "resources/views/welcome.blade.php"],
+  "allowedChangePaths": ["resources/views/welcome.blade.php", "resources/css/app.css"],
+  "editableElementFingerprints": []
+}

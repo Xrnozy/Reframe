@@ -1,2 +1,3 @@
-/** Phase 0 package boundary; the executable CLI belongs to Phase 1. */
-export const CLI_PACKAGE_BOUNDARY = "cli" as const;
+export { runReframe, ReframeError, type LifecycleState, type RunOptions } from "./run.js";
+export { installSignalHandlers, type SignalTarget } from "./signals.js";
+export { runDesignDnaCommand } from "./design-dna-command.js";

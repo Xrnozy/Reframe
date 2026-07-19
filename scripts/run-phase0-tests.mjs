@@ -42,7 +42,7 @@ async function run(script) {
 
 const before = await digestTree(templates);
 let exitCode = 0;
-for (const script of ["build", "test:unit", "test:integration", "test:performance", "test:e2e", "verify:leaks"]) {
+for (const script of ["build", "test:unit", "test:phase0:integration", "test:phase0:performance", "test:e2e", "verify:leaks"]) {
   const code = await run(script);
   if (code !== 0) { exitCode = code; break; }
 }

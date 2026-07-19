@@ -14,12 +14,13 @@ async function canBind(port) {
   }
 }
 
-const ports = [4510, 4511];
+const ports = process.argv.slice(2).map(Number);
+if (ports.length === 0) ports.push(4510, 4511);
 const occupied = [];
 for (const port of ports) if (!(await canBind(port))) occupied.push(port);
 if (occupied.length) {
-  process.stderr.write(`Phase 0 leak check failed; occupied test ports: ${occupied.join(", ")}\n`);
+  process.stderr.write(`Leak check failed; occupied test ports: ${occupied.join(", ")}\n`);
   process.exitCode = 1;
 } else {
-  process.stdout.write(`Phase 0 leak check passed; ports ${ports.join(", ")} are bindable.\n`);
+  process.stdout.write(`Leak check passed; ports ${ports.join(", ")} are bindable.\n`);
 }

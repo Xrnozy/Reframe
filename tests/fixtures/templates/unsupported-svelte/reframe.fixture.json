@@ -1,0 +1,11 @@
+{
+  "id": "unsupported-svelte",
+  "framework": "svelte",
+  "styling": "unknown",
+  "packageManager": "npm",
+  "devCommand": ["npm", "run", "dev"],
+  "expectedPath": "/",
+  "requiredFiles": ["package.json"],
+  "allowedChangePaths": [],
+  "editableElementFingerprints": []
+}

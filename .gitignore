@@ -1,7 +1,28 @@
+# Dependencies & package managers
 node_modules/
+.npm-cache/
+
+# Build output
 dist/
+*.tsbuildinfo
+
+# Test & Playwright artifacts
 test-results/
 playwright-report/
+blob-report/
+.playwright-artifacts/
 coverage/
-*.tsbuildinfo
 .reframe-test-artifacts/
+.cursor/
+.agents/
+
+# Local Reframe project state (history, drafts, snapshots, etc.)
+.reframe/
+
+# Packed CLI artifacts
+reframe-*.tgz
+
+# Debug logs & editor scratch
+debug-*.log
+.cursor/debug-*.log
+.cursor/

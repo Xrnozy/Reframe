@@ -2,8 +2,8 @@
   "files": [],
   "references": [
     { "path": "packages/shared" },
-    { "path": "packages/dev-server" },
     { "path": "packages/browser-client" },
+    { "path": "packages/dev-server" },
     { "path": "packages/cli" }
   ]
 }

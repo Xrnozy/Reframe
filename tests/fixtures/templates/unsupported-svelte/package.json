@@ -1,0 +1,1 @@
+{"private":true,"scripts":{"dev":"vite dev"},"dependencies":{"svelte":"^5.0.0"},"devDependencies":{"vite":"^7.0.0"}}

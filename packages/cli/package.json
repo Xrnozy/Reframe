@@ -1,8 +1,26 @@
 {
-  "name": "@reframe/cli",
+  "name": "reframe",
   "version": "0.0.0",
-  "private": true,
+  "description": "Visual development environment for local web projects",
   "type": "module",
   "main": "dist/index.js",
-  "types": "dist/index.d.ts"
+  "types": "dist/index.d.ts",
+  "bin": {
+    "reframe": "dist/bin.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22 <25"
+  },
+  "dependencies": {
+    "@openai/codex": "0.144.5",
+    "@reframe/dev-server": "0.0.0",
+    "playwright-core": "1.61.1"
+  },
+  "bundleDependencies": [
+    "@reframe/dev-server",
+    "playwright-core"
+  ]
 }

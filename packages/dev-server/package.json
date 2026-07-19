@@ -4,5 +4,15 @@
   "private": true,
   "type": "module",
   "main": "dist/index.js",
-  "types": "dist/index.d.ts"
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22 <25"
+  },
+  "dependencies": {
+    "@reframe/browser-client": "0.0.0",
+    "@reframe/shared": "0.0.0"
+  }
 }

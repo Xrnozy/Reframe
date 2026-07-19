@@ -6,6 +6,6 @@
   "devCommand": ["npm", "run", "dev"],
   "expectedPath": "/",
   "requiredFiles": ["package.json", "src/App.tsx"],
-  "allowedChangePaths": [],
+  "allowedChangePaths": ["src/App.tsx"],
   "editableElementFingerprints": []
 }

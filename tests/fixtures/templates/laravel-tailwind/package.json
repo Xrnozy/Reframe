@@ -1,0 +1,1 @@
+{"private":true,"scripts":{"dev":"vite"},"dependencies":{"tailwindcss":"^4.1.0"},"devDependencies":{"vite":"^7.0.0","laravel-vite-plugin":"^1.0.0"}}
