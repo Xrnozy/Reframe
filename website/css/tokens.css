@@ -1,0 +1,39 @@
+:root {
+  --color-bg: #0a0a0b;
+  --color-bg-elevated: #141416;
+  --color-bg-paper: #f4f0e8;
+  --color-text: #f4f0e8;
+  --color-text-muted: #a8a29e;
+  --color-text-dark: #1a1a1c;
+  --color-accent: #e85d4c;
+  --color-accent-hover: #f07060;
+  --color-violet: #7c3aed;
+  --color-violet-dim: rgba(124, 58, 237, 0.25);
+  --color-green: #22c55e;
+  --color-border: rgba(244, 240, 232, 0.12);
+  --color-border-strong: rgba(244, 240, 232, 0.22);
+
+  --font-display: "Syne", system-ui, sans-serif;
+  --font-body: "DM Sans", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  --space-xs: 0.5rem;
+  --space-sm: 1rem;
+  --space-md: 1.5rem;
+  --space-lg: 2.5rem;
+  --space-xl: 4rem;
+  --space-2xl: 6rem;
+  --space-3xl: 10rem;
+
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+  --radius-pill: 999px;
+
+  --max-width: 1280px;
+  --nav-height: 72px;
+
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --transition-fast: 0.2s var(--ease-out);
+  --transition-med: 0.4s var(--ease-out);
+}

@@ -65,6 +65,8 @@ export interface ContextPacketInput {
   readonly screenshots?: { readonly selected?: "captured" | "excluded" | "failed"; readonly surrounding?: "captured" | "excluded" | "failed"; readonly fullPage?: "captured" | "excluded" | "failed"; readonly blurredRegions?: number };
   readonly designDna?: DesignDnaContext;
   readonly reference?: ReferencePacketContext;
+  readonly imageAttachment?: { readonly id: string; readonly mime: string; readonly filename: string; readonly base64: string };
+  readonly fileReferences?: readonly string[];
   readonly validateReferenceProposal?: (values: readonly string[]) => void;
 }
 
@@ -78,6 +80,8 @@ export interface ContextPacket {
   readonly errors: readonly string[];
   readonly designDna?: DesignDnaContext;
   readonly reference?: ReferencePacketContext;
+  readonly imageAttachment?: { readonly id: string; readonly mime: string; readonly filename: string; readonly base64: string };
+  readonly fileReferences?: readonly string[];
   readonly allowedFiles: readonly string[];
   readonly preview: { readonly categories: readonly string[]; readonly files: readonly string[]; readonly exclusions: readonly string[]; readonly bytes: number };
 }
@@ -99,10 +103,13 @@ export async function buildElementContextPacket(input: ContextPacketInput): Prom
     project: { framework: input.framework, stylingMethod: input.stylingMethod, route: input.fingerprint.route },
     visual: { classes: [...(input.classes ?? [])].slice(0, 32), computedStyles: Object.fromEntries(Object.entries(input.computedStyles ?? {}).slice(0, 64)), screenshots },
     instruction: input.instruction.trim(), errors: [...(input.errors ?? [])].slice(0, 16), allowedFiles: [relative], designDna: input.designDna, reference: input.reference,
+    imageAttachment: input.imageAttachment, fileReferences: input.fileReferences ? [...input.fileReferences].slice(0, 8) : undefined,
   };
   if (input.reference && (!input.reference.plan.expectedFiles.includes(relative) || input.reference.plan.status !== "frozen" || !input.reference.plan.hash)) throw new AiEditError("REFERENCE_PLAN_SCOPE_INVALID");
   const categories = ["selected element", "bounded source", "computed styles", "route/framework", "user instruction", "screenshot status"];
   if (input.reference) categories.push("sanitized reference evidence", "frozen adaptation plan");
+  if (input.imageAttachment) categories.push("pasted image reference");
+  if (input.fileReferences?.length) categories.push("design DNA file references");
   const exclusions = ["environment files", "credentials and private keys", "ignored/unrelated files", "logs and history", "entire repository"];
   const measured = Buffer.byteLength(JSON.stringify(base));
   if (measured > MAX_PACKET_BYTES) throw new AiEditError("PACKET_TOO_LARGE");
@@ -255,6 +262,11 @@ function runCodex(command: readonly string[], args: readonly string[], input: st
   });
 }
 
+export function buildCodexUserPrompt(packet: Readonly<ContextPacket>): string {
+  const refs = packet.fileReferences?.length ? packet.fileReferences.map((item) => `@${item.replace(/^\//, "")}`).join(" ") + "\n\n" : "";
+  return refs + packet.instruction;
+}
+
 export function buildCodexExecArgs(options: {
   readonly directory: string;
   readonly schemaPath: string;
@@ -287,7 +299,7 @@ export function createCodexCliProvider(options: { readonly command?: readonly st
         const resumeId = conversationId && !conversationId.startsWith("conversation-")
           ? conversationId.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)?.[0]
           : undefined;
-        const userPrompt = packet.instruction;
+        const userPrompt = buildCodexUserPrompt(packet);
         const args = buildCodexExecArgs({ directory, schemaPath, outputPath, userPrompt, resumeId });
         const taskLabel = resumeId ?? "ephemeral";
         const promptPreview = userPrompt.length > 80 ? `${userPrompt.slice(0, 77)}…` : userPrompt;

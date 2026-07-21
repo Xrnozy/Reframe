@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Reframe — visual editing for real codebases. Edit your running local app like Figma, write changes to your source files.">
+  <meta property="og:title" content="Reframe — Visual editing for real codebases">
+  <meta property="og:description" content="The browser becomes an intelligent visual interface for the real codebase.">
+  <meta property="og:image" content="assets/og-image.svg">
+  <title>Reframe — Visual editing for real codebases</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=IBM+Plex+Mono:wght@400;500&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/tokens.css">
+  <link rel="stylesheet" href="css/global.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/demo.css">
+</head>
+<body>
+  <a href="#main" class="skip-link">Skip to content</a>
+
+  <header class="site-header">
+    <div class="container">
+      <a href="#" class="logo" aria-label="Reframe home">Re<span>frame</span></a>
+      <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav" aria-label="Toggle navigation">
+        <span></span><span></span><span></span>
+      </button>
+      <nav id="site-nav" class="site-nav" aria-label="Main">
+        <a href="#why">Why</a>
+        <a href="#demo">Demo</a>
+        <a href="#workflow">Workflow</a>
+        <a href="#features">Features</a>
+        <a href="#tech">Tech</a>
+        <a href="#install">Install</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+  <section class="hero section-pad" id="hero" aria-labelledby="hero-heading">
+    <div class="hero-grid-bg" aria-hidden="true"></div>
+    <div class="container hero-inner">
+      <p class="hero-eyebrow">OpenAI Build Week</p>
+      <h1 id="hero-heading">
+        <span class="line"><span class="line-inner">Visual editing</span></span>
+        <span class="line"><span class="line-inner">for real codebases.</span></span>
+      </h1>
+      <p class="hero-sub">Figma-like control over your running local app. Every approved change maps back to the correct source files in your repository.</p>
+      <div class="hero-actions">
+        <button type="button" class="copy-cmd" id="copy-cmd" aria-label="Copy install command">
+          <code>npx reframe</code>
+          <span class="copy-label">Click to copy</span>
+        </button>
+        <a href="#demo" class="btn btn-secondary">Watch it work</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="why section-pad" id="why" aria-labelledby="why-heading">
+    <div class="container">
+      <div class="why-grid">
+        <div class="why-manifesto">
+          <p class="section-label">01 — Why Reframe</p>
+          <span class="section-number" aria-hidden="true">01</span>
+          <h2 id="why-heading">Design tools don't write to your repo. AI generators don't use your dev server.</h2>
+          <p>Reframe sits inside your existing workflow — your dev server, hot reload, routing, and Git history all stay intact.</p>
+          <p>The rendered page is the editing surface. Your repository remains the source of truth.</p>
+        </div>
+        <div class="why-ui-stack">
+          <div class="ui-fragment" data-reveal>
+            <div class="ui-toolbar-pill">
+              <span class="dot" aria-hidden="true"></span>
+              <span class="tool active" aria-hidden="true"></span>
+              <span class="tool" aria-hidden="true"></span>
+              <span class="tool" aria-hidden="true"></span>
+              <span class="tool" aria-hidden="true"></span>
+            </div>
+            <div class="ui-selection-box">
+              <span class="ui-selection-tag">button#primary-cta</span>
+            </div>
+          </div>
+          <div class="ui-fragment" data-reveal>
+            <span class="ui-status-chip">
+              <span class="dot" style="width:6px;height:6px;border-radius:50%;background:var(--color-green);display:inline-block"></span>
+              Connected · localhost:4400
+            </span>
+          </div>
+        </div>
+      </div>
+      <div class="rule-line" data-rule style="margin-top:var(--space-xl)"></div>
+    </div>
+  </section>
+
+  <section class="demo-section section-pad" id="demo" aria-labelledby="demo-heading">
+    <div class="demo-pin-container" id="demo-pin-wrapper">
+      <div class="demo-pin-sticky" id="demo-pin">
+        <div class="container">
+          <div class="demo-layout">
+            <div class="demo-copy">
+              <div class="demo-header">
+                <p class="section-label">02 — Interactive demo</p>
+                <h2 id="demo-heading">See Reframe in action</h2>
+                <p>Follow one button from the running page to its source file: inspect it, preview a change, ask Codex, approve the write, then review or restore it.</p>
+              </div>
+              <div class="demo-controls">
+                <div class="demo-controls-left">
+                  <button type="button" class="btn-ghost" id="demo-prev" aria-label="Previous scene">← Prev</button>
+                  <button type="button" class="btn-ghost" id="demo-next" aria-label="Next scene">Next →</button>
+                  <button type="button" class="btn-ghost" id="demo-replay" aria-label="Replay current scene">Replay</button>
+                </div>
+                <div class="demo-progress-dots" id="demo-dots" aria-hidden="true"></div>
+                <div class="demo-controls-right">
+                  <button type="button" class="btn btn-secondary" id="demo-skip-btn">Skip to demo</button>
+                  <button type="button" class="btn btn-primary" id="demo-fullscreen-btn">View Full Demo</button>
+                </div>
+              </div>
+              <span class="demo-scene-indicator" aria-live="polite" id="demo-scene-label">
+                <span class="demo-scene-title">Starting…</span>
+              </span>
+              <p id="demo-hint-bar" class="demo-hint-bar" hidden aria-live="polite"></p>
+            </div>
+            <div class="demo-showcase">
+              <div
+                class="demo-stage-wrap is-terminal-mode"
+                id="demo-stage-wrap"
+                role="region"
+                aria-label="Product demo"
+                aria-roledescription="carousel"
+                tabindex="0"
+              >
+                <div class="demo-stage" id="demo-stage">
+                  <!-- Scenes injected by JS -->
+                </div>
+                <div class="demo-cursor" id="demo-cursor" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none"><path d="M5 3l14 6.5-6.5 2.5-2.5 6.5L5 3z" fill="#fff" stroke="#000" stroke-width="1.2"/></svg>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="demo-scroll-spacer" id="demo-scroll-spacer" aria-hidden="true"></div>
+    </div>
+  </section>
+
+  <section class="section-pad" id="workflow" aria-labelledby="workflow-heading">
+    <div class="container">
+      <p class="section-label">03 — Workflow</p>
+      <h2 id="workflow-heading">From terminal to source files</h2>
+      <p>One command connects your running app to a visual editing layer.</p>
+      <ol class="workflow-steps">
+        <li class="workflow-step" data-reveal-step>
+          <span class="step-num">01</span>
+          <h3>Detect</h3>
+          <p>Scan package.json, config files, and directory layout to identify your framework and dev command.</p>
+        </li>
+        <li class="workflow-step" data-reveal-step>
+          <span class="step-num">02</span>
+          <h3>Attach</h3>
+          <p>Start your project's dev server or connect to one already running on your machine.</p>
+        </li>
+        <li class="workflow-step" data-reveal-step>
+          <span class="step-num">03</span>
+          <h3>Proxy &amp; Inject</h3>
+          <p>Serve the app through Reframe at localhost:4400 and inject the browser client — toolbar, selection, edit panels.</p>
+        </li>
+        <li class="workflow-step" data-reveal-step>
+          <span class="step-num">04</span>
+          <h3>Map &amp; Write</h3>
+          <p>Link DOM elements to source locations. Approved edits persist to disk with visual history checkpoints.</p>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="section-pad" id="features" aria-labelledby="features-heading">
+    <div class="container">
+      <p class="section-label">04 — Capabilities</p>
+      <h2 id="features-heading">Everything you need to edit visually</h2>
+      <ul class="features-list">
+        <li class="feature-row" data-reveal-batch>
+          <h3>Visual editing</h3>
+          <p>Select elements, resize and restyle them, edit text inline. Move handles and design panel controls map to real CSS properties.</p>
+        </li>
+        <li class="feature-row" data-reveal-batch>
+          <h3>Source mapping</h3>
+          <p>DOM nodes linked to real file locations with confidence levels — exact, probable, or ambiguous — before any write.</p>
+        </li>
+        <li class="feature-row" data-reveal-batch>
+          <h3>Codex generate</h3>
+          <p>Describe structural changes in natural language. Codex receives structured context — component, source location, Design DNA.</p>
+        </li>
+        <li class="feature-row" data-reveal-batch>
+          <h3>Visual history</h3>
+          <p>Screenshot-first history with prompts, changed files, and local Git checkpoints. Undo and restore any accepted state.</p>
+        </li>
+        <li class="feature-row" data-reveal-batch>
+          <h3>Annotations</h3>
+          <p>Persistent comment pins anchored to real components. Collaborate with teammates on the live page, not stale mockups.</p>
+        </li>
+        <li class="feature-row" data-reveal-batch>
+          <h3>Design DNA</h3>
+          <p>Detected tokens, components, and rules keep AI edits consistent with your project's design language.</p>
+        </li>
+        <li class="feature-row" data-reveal-batch>
+          <h3>Figma paste</h3>
+          <p>Paste Figma CSS directly onto elements. Reframe parses layer styles and applies them to mapped source files.</p>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="tech-section section-pad" id="tech" aria-labelledby="tech-heading">
+    <div class="container tech-pin-wrap" id="tech-pin">
+      <div class="tech-header">
+        <p class="section-label">05 — Supported technologies</p>
+        <h2 id="tech-heading">Works with your stack</h2>
+        <p>Auto-detected from your project. Source writes available for supported frameworks.</p>
+      </div>
+
+      <div class="tech-groups">
+        <div class="tech-group tech-group--writes">
+          <h3 class="tech-group-label">
+            <span class="tech-group-dot" aria-hidden="true"></span>
+            Source writes
+          </h3>
+          <div class="tech-grid" id="tech-track">
+            <article class="tech-item" data-tech-reveal>
+              <div class="tech-icon tech-icon--html" aria-hidden="true">
+                <img src="https://cdn.simpleicons.org/html5/E34F26" width="28" height="28" alt="HTML5" loading="lazy" onerror="this.onerror=null;this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22%3E%3Crect x=%224%22 y=%224%22 width=%2216%22 height=%2216%22 rx=%223%22 stroke=%22%23888%22 stroke-width=%221.5%22/%3E%3C/svg%3E';">
+              </div>
+              <div class="tech-card-body">
+                <div class="name">Vanilla HTML/CSS</div>
+                <span class="status yes">Source writes</span>
+              </div>
+            </article>
+            <article class="tech-item" data-tech-reveal>
+              <div class="tech-icon tech-icon--vite" aria-hidden="true">
+                <img src="https://cdn.simpleicons.org/vite/646CFF" width="28" height="28" alt="Vite" loading="lazy" onerror="this.onerror=null;this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22%3E%3Crect x=%224%22 y=%224%22 width=%2216%22 height=%2216%22 rx=%223%22 stroke=%22%23888%22 stroke-width=%221.5%22/%3E%3C/svg%3E';">
+              </div>
+              <div class="tech-card-body">
+                <div class="name">Vite</div>
+                <span class="status yes">Source writes</span>
+              </div>
+            </article>
+            <article class="tech-item" data-tech-reveal>
+              <div class="tech-icon tech-icon--react" aria-hidden="true">
+                <img src="https://cdn.simpleicons.org/react/61DAFB" width="28" height="28" alt="React" loading="lazy" onerror="this.onerror=null;this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22%3E%3Crect x=%224%22 y=%224%22 width=%2216%22 height=%2216%22 rx=%223%22 stroke=%22%23888%22 stroke-width=%221.5%22/%3E%3C/svg%3E';">
+              </div>
+              <div class="tech-card-body">
+                <div class="name">React + Vite</div>
+                <span class="status yes">Source writes</span>
+              </div>
+            </article>
+            <article class="tech-item" data-tech-reveal>
+              <div class="tech-icon tech-icon--react-ts" aria-hidden="true">
+                <img src="https://cdn.simpleicons.org/typescript/3178C6" width="28" height="28" alt="TypeScript" loading="lazy" onerror="this.onerror=null;this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22%3E%3Crect x=%224%22 y=%224%22 width=%2216%22 height=%2216%22 rx=%223%22 stroke=%22%23888%22 stroke-width=%221.5%22/%3E%3C/svg%3E';">
+              </div>
+              <div class="tech-card-body">
+                <div class="name">React + TS</div>
+                <span class="status yes">Source writes</span>
+              </div>
+            </article>
+            <article class="tech-item" data-tech-reveal>
+              <div class="tech-icon tech-icon--laravel" aria-hidden="true">
+                <img src="https://cdn.simpleicons.org/laravel/FF2D20" width="28" height="28" alt="Laravel" loading="lazy" onerror="this.onerror=null;this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22%3E%3Crect x=%224%22 y=%224%22 width=%2216%22 height=%2216%22 rx=%223%22 stroke=%22%23888%22 stroke-width=%221.5%22/%3E%3C/svg%3E';">
+              </div>
+              <div class="tech-card-body">
+                <div class="name">Laravel</div>
+                <span class="status yes">Source writes</span>
+              </div>
+            </article>
+            <article class="tech-item" data-tech-reveal>
+              <div class="tech-icon tech-icon--next" aria-hidden="true">
+                <img src="https://cdn.simpleicons.org/nextdotjs/FFFFFF" width="28" height="28" alt="Next.js" loading="lazy" onerror="this.onerror=null;this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22%3E%3Crect x=%224%22 y=%224%22 width=%2216%22 height=%2216%22 rx=%223%22 stroke=%22%23888%22 stroke-width=%221.5%22/%3E%3C/svg%3E';">
+              </div>
+              <div class="tech-card-body">
+                <div class="name">Next.js</div>
+                <span class="status yes">Source writes</span>
+              </div>
+            </article>
+          </div>
+        </div>
+
+        <div class="tech-group tech-group--preview">
+          <h3 class="tech-group-label">
+            <span class="tech-group-dot" aria-hidden="true"></span>
+            Preview only
+          </h3>
+          <div class="tech-grid">
+            <article class="tech-item" data-tech-reveal>
+              <div class="tech-icon tech-icon--vue" aria-hidden="true">
+                <img src="https://cdn.simpleicons.org/vuedotjs/4FC08D" width="28" height="28" alt="Vue" loading="lazy" onerror="this.onerror=null;this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22%3E%3Crect x=%224%22 y=%224%22 width=%2216%22 height=%2216%22 rx=%223%22 stroke=%22%23888%22 stroke-width=%221.5%22/%3E%3C/svg%3E';">
+              </div>
+              <div class="tech-card-body">
+                <div class="name">Vue</div>
+                <span class="status preview">Preview only</span>
+              </div>
+            </article>
+            <article class="tech-item" data-tech-reveal>
+              <div class="tech-icon tech-icon--svelte" aria-hidden="true">
+                <img src="https://cdn.simpleicons.org/svelte/FF3E00" width="28" height="28" alt="Svelte" loading="lazy" onerror="this.onerror=null;this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22%3E%3Crect x=%224%22 y=%224%22 width=%2216%22 height=%2216%22 rx=%223%22 stroke=%22%23888%22 stroke-width=%221.5%22/%3E%3C/svg%3E';">
+              </div>
+              <div class="tech-card-body">
+                <div class="name">Svelte</div>
+                <span class="status preview">Preview only</span>
+              </div>
+            </article>
+            <article class="tech-item" data-tech-reveal>
+              <div class="tech-icon tech-icon--astro" aria-hidden="true">
+                <img src="https://cdn.simpleicons.org/astro/FF5D01" width="28" height="28" alt="Astro" loading="lazy" onerror="this.onerror=null;this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22%3E%3Crect x=%224%22 y=%224%22 width=%2216%22 height=%2216%22 rx=%223%22 stroke=%22%23888%22 stroke-width=%221.5%22/%3E%3C/svg%3E';">
+              </div>
+              <div class="tech-card-body">
+                <div class="name">Astro</div>
+                <span class="status preview">Preview only</span>
+              </div>
+            </article>
+            <article class="tech-item" data-tech-reveal>
+              <div class="tech-icon tech-icon--angular" aria-hidden="true">
+                <img src="https://cdn.simpleicons.org/angular/DD0031" width="28" height="28" alt="Angular" loading="lazy" onerror="this.onerror=null;this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22%3E%3Crect x=%224%22 y=%224%22 width=%2216%22 height=%2216%22 rx=%223%22 stroke=%22%23888%22 stroke-width=%221.5%22/%3E%3C/svg%3E';">
+              </div>
+              <div class="tech-card-body">
+                <div class="name">Angular</div>
+                <span class="status preview">Preview only</span>
+              </div>
+            </article>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section-pad" id="benefits" aria-labelledby="benefits-heading">
+    <div class="container">
+      <p class="section-label">06 — Benefits</p>
+      <h2 id="benefits-heading">Built for developers who ship</h2>
+      <div class="benefits-grid">
+        <article class="benefit-card" data-reveal-benefit>
+          <div class="benefit-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.5"/></svg>
+          </div>
+          <blockquote>No duplicate design system — edits respect your existing tokens and patterns.</blockquote>
+          <p>Design DNA analysis keeps Codex aligned with what you've already built.</p>
+        </article>
+        <article class="benefit-card" data-reveal-benefit>
+          <div class="benefit-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M13 3L5 13h6l-1 8 8-10h-6l1-8z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+          </div>
+          <blockquote>Hot reload truth — see changes instantly through your real dev server.</blockquote>
+          <p>Not a sandbox. Your routing, state, and HMR all work exactly as before.</p>
+        </article>
+        <article class="benefit-card" data-reveal-benefit>
+          <div class="benefit-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M12 21s-6-4.5-6-9a6 6 0 1112 0c0 4.5-6 9-6 9z" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="12" r="2" fill="currentColor"/></svg>
+          </div>
+          <blockquote>Team annotations on live components, not exported screenshots.</blockquote>
+          <p>Comments persist across sessions and anchor to mapped source locations.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta-section section-pad" id="install" aria-labelledby="cta-heading">
+    <div class="container cta-inner" data-cta-reveal>
+      <h2 id="cta-heading">Start editing in one command</h2>
+      <p>Run Reframe in any supported local project. No browser extension, no proprietary IDE.</p>
+      <button type="button" class="btn btn-primary copy-cmd" id="copy-cmd-cta">
+        <code>npx reframe</code>
+      </button>
+      <div class="cta-links">
+        <a href="https://github.com/Xrnozy/Reframe" target="_blank" rel="noopener noreferrer">View on GitHub</a>
+        <a href="https://github.com/Xrnozy/Reframe#installation" target="_blank" rel="noopener noreferrer">Installation guide</a>
+      </div>
+    </div>
+  </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <p>Reframe — OpenAI Build Week · The browser becomes an intelligent visual interface for the real codebase.</p>
+    </div>
+  </footer>
+
+  <div class="demo-fullscreen" id="demo-fullscreen" role="dialog" aria-modal="true" aria-label="Full product demo">
+    <div class="demo-fullscreen-header">
+      <span class="demo-scene-title" id="demo-fs-title">Product demo</span>
+      <button type="button" class="btn-ghost" id="demo-fs-close" aria-label="Close full demo">Close ✕</button>
+    </div>
+    <div class="demo-stage-wrap" id="demo-fs-stage-wrap">
+      <div class="demo-stage" id="demo-fs-stage"></div>
+      <div class="demo-cursor" id="demo-fs-cursor" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M5 3l14 6.5-6.5 2.5-2.5 6.5L5 3z" fill="#fff" stroke="#000" stroke-width="1.2"/></svg>
+      </div>
+    </div>
+    <p id="demo-fs-hint" class="demo-hint-bar" hidden aria-live="polite"></p>
+    <div class="demo-controls" style="margin-top:1rem;border:none;padding:0">
+      <div class="demo-controls-left">
+        <button type="button" class="btn-ghost" id="demo-fs-prev">← Prev</button>
+        <button type="button" class="btn-ghost" id="demo-fs-next">Next →</button>
+        <button type="button" class="btn-ghost" id="demo-fs-replay">Replay</button>
+      </div>
+      <div class="demo-progress-dots" id="demo-fs-dots"></div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

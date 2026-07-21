@@ -44,7 +44,7 @@ async function ready(page: Page, url: string): Promise<void> {
 }
 
 async function selectAndApply(page: Page, selector: string, width: number): Promise<void> {
-  await page.locator("#reframe-root [data-reframe-select]").click();
+  await page.locator('#reframe-root [data-reframe-tool="select"]').click();
   await page.locator(selector).click();
   await expect(page.locator("#reframe-root [data-reframe-mapping]")).toHaveText("exact");
   await page.evaluate((value) => window[Symbol.for("reframe.browser-client")].previewWidth(value), width);
@@ -97,7 +97,7 @@ test("P6-03 exposes ambiguous evidence, disables Apply, and leaves disk unchange
   const css = path.join(copyRoot!, "style.css");
   const before = await readFile(css);
   await ready(page, url);
-  await page.locator("#reframe-root [data-reframe-select]").click();
+  await page.locator('#reframe-root [data-reframe-tool="select"]').click();
   await page.locator("#card-annual").click();
   await expect(page.locator("#reframe-root [data-reframe-mapping]")).toHaveText("ambiguous");
   await expect(page.locator("#reframe-root [data-reframe-diagnostic]")).toContainText("Multiple");
@@ -120,7 +120,7 @@ test("P6-05 serves React component, range, instance, props, style-owner, and reu
   await expect(annual).toHaveAttribute("data-reframe-props", "id,name,description");
   expect(await readFile(jsx, "utf8")).not.toContain("data-reframe-component");
 
-  await page.locator("#reframe-root [data-reframe-select]").click();
+  await page.locator('#reframe-root [data-reframe-tool="select"]').click();
   await annual.click();
   await expect(page.locator("#reframe-root [data-reframe-mapping]")).toHaveText("exact");
   await expect(annual).toHaveAttribute("data-reframe-style-owner", /^src\/styles\.css:\d+$/);
@@ -138,7 +138,7 @@ test("P6-10 disables Apply for a computed React class expression", async ({ page
   const source = path.join(copyRoot!, "src", "App.jsx");
   const before = await readFile(source);
   await ready(page, url);
-  await page.locator("#reframe-root [data-reframe-select]").click();
+  await page.locator('#reframe-root [data-reframe-tool="select"]').click();
   await page.locator("#card-annual").evaluate((element) => element.dispatchEvent(new MouseEvent("click", { bubbles: true, composed: true })));
   await expect(page.locator("#reframe-root [data-reframe-mapping]")).toHaveText("not-mapped");
   await expect(page.locator("#reframe-root [data-reframe-diagnostic]")).toContainText("Dynamic className");
@@ -151,7 +151,7 @@ test("P6-11 requires explicit shared-impact approval before Apply", async ({ pag
   const url = await start("react-demo", "react");
   const css = path.join(copyRoot!, "src", "styles.css");
   await ready(page, url);
-  await page.locator("#reframe-root [data-reframe-select]").click();
+  await page.locator('#reframe-root [data-reframe-tool="select"]').click();
   await page.locator("#card-starter").evaluate((element) => element.dispatchEvent(new MouseEvent("click", { bubbles: true, composed: true })));
   await expect(page.locator("#reframe-root [data-reframe-mapping]")).toHaveText("probable");
   await expect(page.locator("#reframe-root [data-reframe-diagnostic]")).toContainText("PricingCard component/style owner");
@@ -176,7 +176,7 @@ test("P6-17 rolls back when the browser reports a page error during post-write v
   const before = await readFile(css);
   await ready(page, url);
   const originalWidth = await page.locator("#card-annual").evaluate((element) => getComputedStyle(element).width);
-  await page.locator("#reframe-root [data-reframe-select]").click();
+  await page.locator('#reframe-root [data-reframe-tool="select"]').click();
   await page.locator("#card-annual").click();
   await page.evaluate(() => window[Symbol.for("reframe.browser-client")].previewWidth(420));
   await expect(page.locator("#reframe-root [data-reframe-apply]")).toBeEnabled();
@@ -195,7 +195,7 @@ test("P6-18 rolls back on the configured verification timeout and offers retry",
   const css = path.join(copyRoot!, "style.css");
   const before = await readFile(css);
   await ready(page, url);
-  await page.locator("#reframe-root [data-reframe-select]").click();
+  await page.locator('#reframe-root [data-reframe-tool="select"]').click();
   await page.locator("#card-annual").click();
   await expect(page.locator("#reframe-root [data-reframe-mapping]")).toHaveText("exact");
   await page.evaluate(() => window[Symbol.for("reframe.browser-client")].previewWidth(420));
@@ -214,7 +214,7 @@ test("P6-19 presents critical rollback failure and disables further edits", asyn
   const css = path.join(copyRoot!, "style.css");
   const before = await readFile(css);
   await ready(page, url);
-  await page.locator("#reframe-root [data-reframe-select]").click();
+  await page.locator('#reframe-root [data-reframe-tool="select"]').click();
   await page.locator("#card-annual").click();
   await expect(page.locator("#reframe-root [data-reframe-mapping]")).toHaveText("exact");
   await page.evaluate(() => window[Symbol.for("reframe.browser-client")].previewWidth(420));
@@ -234,7 +234,7 @@ test("P6-21 completes the React persistent edit milestone and changes only style
   await expect(page.locator("#card-annual")).toHaveCSS("width", "420px");
   await page.reload({ waitUntil: "domcontentloaded" });
   await expect(page.locator("#card-annual")).toHaveCSS("width", "420px");
-  await page.locator("#reframe-root [data-reframe-select]").click();
+  await page.locator('#reframe-root [data-reframe-tool="select"]').click();
   await page.locator("#card-annual").click();
   await expect(page.locator("#reframe-root [data-reframe-mapping]")).toHaveText("exact");
 

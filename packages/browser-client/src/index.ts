@@ -1,16 +1,32 @@
 import { REFRAME_PROTOCOL_NAME, REFRAME_PROTOCOL_VERSION } from "@reframe/shared";
+import { buildFigmaCssRuntime } from "./figma-css.js";
+
+export { isFigmaCssExport, parseFigmaCssExport, sanitizeFigmaLayerClass, splitFigmaCssBlocks } from "./figma-css.js";
+
+const FIGMA_CSS_RUNTIME = buildFigmaCssRuntime();
 
 export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
+` + FIGMA_CSS_RUNTIME + String.raw`
   const PROTOCOL = ${REFRAME_PROTOCOL_VERSION};
   const PROTOCOL_NAME = ${JSON.stringify(REFRAME_PROTOCOL_NAME)};
   const script = document.currentScript;
-  const session = script?.dataset.reframeSession;
-  const proxyOrigin = script?.dataset.reframeProxyOrigin;
-  const projectId = script?.dataset.reframeProjectId;
-  const token = script?.dataset.reframeToken;
-  const wsPath = script?.dataset.reframeWsPath;
-  if (!session || !projectId || !token || !wsPath || proxyOrigin !== location.origin || new URL(script.src).origin !== location.origin) return;
-  const reframeBasePath = new URL(script.src).pathname.replace(/\/client\.js$/, "");
+  let session = script?.dataset.reframeSession;
+  const proxyOriginInput = script?.dataset.reframeProxyOrigin;
+  let projectId = script?.dataset.reframeProjectId;
+  let token = script?.dataset.reframeToken;
+  let wsPath = script?.dataset.reframeWsPath;
+  const standalone = script?.dataset.reframeStandalone === "true";
+  const showcaseMode = script?.dataset.reframeShowcase === "true";
+  const proxyOrigin = proxyOriginInput || location.origin;
+  if (!standalone && !showcaseMode) {
+    if (!session || !projectId || !token || !wsPath || proxyOrigin !== location.origin || new URL(script.src).origin !== location.origin) return;
+  } else {
+    session = session || "website-showcase";
+    projectId = projectId || "website-showcase";
+    token = token || "standalone";
+    wsPath = wsPath || "/.reframe/demo/ws";
+  }
+  const reframeBasePath = standalone || showcaseMode ? "/.reframe/demo" : new URL(script.src).pathname.replace(/\/client\.js$/, "");
   script.removeAttribute("data-reframe-token");
 
   const number = (value, fallback) => Number.isFinite(Number(value)) && Number(value) > 0 ? Number(value) : fallback;
@@ -51,36 +67,51 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
   host.style.width = "100%";
   host.style.height = "100%";
   host.style.zIndex = "2147483000";
+  if (showcaseMode) host.style.pointerEvents = "none";
+  const showcasePanelCss = showcaseMode ? '.layers-panel,.design-panel,.ai-panel.figma-sidebar,.history-dialog{transition:transform .48s ease,opacity .48s ease}.layers-panel.showcase-panel-closing{transform:translateX(-18px);opacity:0}.design-panel.showcase-panel-closing,.ai-panel.figma-sidebar.showcase-panel-closing{transform:translateX(18px);opacity:0}.history-dialog.showcase-panel-closing{transform:translateY(18px);opacity:0}.annotation-dialog{width:min(300px,calc(100vw - 24px))}.ai-attachments[hidden],.annotation-form[hidden]{display:none!important}' : '';
 
   const root = host.attachShadow({ mode: "open" });
-  const css = ':host{all:initial!important;position:fixed!important;inset:0!important;display:block!important;pointer-events:none!important;z-index:2147483000!important}*{box-sizing:border-box}.chip,.pill,.ai-panel{pointer-events:auto;background:#1c1c1e;border-radius:999px;box-shadow:0 8px 32px rgb(0 0 0/.38),0 0 0 1px rgb(255 255 255/.08);color:#f5f5f7}.panel{pointer-events:none;background:#1c1c1e;border-radius:14px;box-shadow:0 8px 32px rgb(0 0 0/.38),0 0 0 1px rgb(255 255 255/.08);color:#f5f5f7}.panel .button,.panel .panel-input{pointer-events:auto}.chrome{position:fixed;top:12px;left:12px;right:12px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;pointer-events:none;z-index:2147483004;min-height:44px}.status-chip{align-items:center;display:inline-flex;flex-wrap:nowrap;gap:4px;height:38px;max-width:calc(100vw - 24px);overflow-x:auto;overflow-y:hidden;padding:4px 8px 4px 10px;pointer-events:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}.status-chip::-webkit-scrollbar{display:none}.status-chip .button{flex-shrink:0}.brand-mini{align-items:center;background:linear-gradient(135deg,#7c3aed,#5b45d6);border-radius:8px;color:#fff;display:inline-flex;font:800 11px/1 system-ui;height:22px;justify-content:center;width:22px}.toast{background:#1c1c1ee6;border-radius:10px;color:#e5e7eb;font:500 12px/1.35 system-ui;max-width:min(420px,50vw);padding:8px 12px;pointer-events:none}.context-pill{align-items:center;display:inline-flex;gap:2px;height:42px;padding:4px;position:fixed;z-index:2147483003}.pill-divider{background:rgb(255 255 255/.12);height:18px;margin:0 2px;width:1px}.dot{background:#f59e0b;border-radius:50%;height:8px;margin:0 2px;width:8px}:host([data-reframe-state="connected"]) .dot{background:#22c55e}:host([data-reframe-state="disconnected"]) .dot,:host([data-reframe-state="failed"]) .dot{background:#ef4444}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}.button{all:unset;align-items:center;border-radius:999px;color:#f5f5f7;cursor:pointer;display:inline-flex;font:600 12px/1 system-ui;justify-content:center;white-space:nowrap}.button.icon{flex:0 0 32px;height:32px;line-height:0;min-width:32px;overflow:hidden;padding:0;position:relative;width:32px}.button.icon svg{display:block;flex-shrink:0;height:18px;pointer-events:none;width:18px}.button.icon svg *{vector-effect:non-scaling-stroke}.button:hover,.button[aria-pressed="true"]{background:rgb(255 255 255/.12)}.button:focus-visible,.handle:focus-visible,.annotation-pin:focus-visible{outline:2px solid #a78bfa;outline-offset:2px}.button[aria-disabled="true"],.button:disabled{cursor:not-allowed;opacity:.45}.badge{align-items:center;background:#7c3aed;border-radius:999px;color:#fff;display:inline-flex;font:700 9px/1 system-ui;height:14px;justify-content:center;min-width:14px;padding:0 3px;position:absolute;right:0;top:0}.outline{border:2px solid #8b5cf6;border-radius:4px;display:block;pointer-events:none;position:fixed;box-shadow:0 0 0 1px rgb(139 92 246/.25)}.outline.hover{z-index:2147483001}.outline.selected{z-index:2147483005}.outline[hidden],.panel[hidden],.ai-panel[hidden],.context-pill[hidden],.more-menu[hidden],.time-overlay[hidden],.history-dialog[hidden],.annotation-dialog[hidden],.reference-dialog[hidden]{display:none}.hover{border-style:dashed}.tag{background:#7c3aed;border-radius:6px;color:#fff;font:600 11px/1.2 system-ui;padding:3px 6px;position:absolute;left:-2px;top:-24px;white-space:nowrap}.handle{all:unset;background:#8b5cf6;border:2px solid #fff;border-radius:50%;box-shadow:0 2px 8px rgb(0 0 0/.25);cursor:ew-resize;height:12px;pointer-events:auto;position:absolute;right:-8px;top:calc(50% - 8px);width:12px}.handle-bottom{bottom:-8px;left:calc(50% - 8px);right:auto;top:auto;cursor:ns-resize}.handle-move{left:calc(50% - 8px);right:auto;top:-8px;cursor:move}.edit-toolbar{flex-wrap:wrap;gap:4px;padding:6px 8px}.edit-toolbar-section{align-items:center;display:inline-flex;flex-wrap:nowrap;gap:4px;pointer-events:auto}.panel-divider{align-self:stretch;background:rgb(255 255 255/.12);flex-shrink:0;margin:4px 2px;width:1px}.layout-panel{gap:4px;padding:0}.layout-panel .layout-field{align-items:center;display:inline-flex;font:500 11px/1 system-ui;gap:4px}.layout-panel .layout-input{width:52px}.layout-radius-field{display:none}.panel,.ai-panel{align-items:center;border-radius:14px;display:flex;flex-wrap:nowrap;font:500 12px/1.2 system-ui;gap:6px;max-width:calc(100vw - 24px);padding:6px 8px;position:fixed;z-index:2147483002}.panel-metrics{color:#a1a1aa;display:inline-flex;font:500 10px/1 ui-monospace,monospace;gap:6px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.panel-input{background:rgb(255 255 255/.06);border:1px solid rgb(255 255 255/.12);border-radius:8px;color:#fff;flex:1;font:12px/1.35 system-ui;min-width:80px;padding:5px 8px}.panel-hint,.mapping,.temporary{display:none}.panel.in-design-panel .panel-hint,.panel.in-design-panel .mapping,.panel.in-design-panel .temporary{display:revert}.ai-chat-label{color:#a1a1aa;display:grid;font:11px/1.3 system-ui;gap:4px}.ai-chat-picker{position:relative;width:100%}.ai-chat-trigger{align-items:center;background:rgb(255 255 255/.06);border:1px solid rgb(255 255 255/.12);border-radius:8px;color:#fff;cursor:pointer;display:flex;font:12px/1.35 system-ui;gap:8px;justify-content:space-between;min-width:0;padding:6px 8px;text-align:left;width:100%}.ai-chat-trigger:hover,.ai-chat-trigger[aria-expanded="true"]{background:rgb(255 255 255/.1);border-color:rgb(255 255 255/.18)}.ai-chat-trigger-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ai-chat-chevron{color:#a1a1aa;flex-shrink:0;font-size:10px;line-height:1;transition:transform .15s}.ai-chat-trigger[aria-expanded="true"] .ai-chat-chevron{transform:rotate(180deg)}.ai-chat-menu{background:#2a2a2e;border:1px solid rgb(255 255 255/.12);border-radius:10px;box-shadow:0 12px 32px rgb(0 0 0/.45);left:0;list-style:none;margin:4px 0 0;max-height:240px;overflow:auto;padding:4px;position:absolute;right:0;z-index:2}.ai-chat-menu[hidden]{display:none}.ai-chat-option{align-items:center;border-radius:8px;color:#f5f5f7;cursor:pointer;display:flex;font:12px/1.35 system-ui;gap:8px;padding:8px 10px;text-align:left;width:100%}.ai-chat-option:hover,.ai-chat-option[aria-selected="true"]{background:rgb(124 58 237/.2)}.ai-chat-option[aria-selected="true"]{color:#ddd6fe}.ai-panel{align-items:stretch;border-radius:16px;flex-direction:column;flex-wrap:wrap;gap:8px;overflow:visible;width:min(420px,calc(100vw - 24px));z-index:2147483001}.ai-chat-label,.ai-session-id-label{color:#a1a1aa;display:grid;font:11px/1.3 system-ui;gap:4px;width:100%}.ai-session-id-input{background:rgb(255 255 255/.06);border:1px solid rgb(255 255 255/.12);border-radius:8px;color:#fff;font:12px/1.35 system-ui;min-width:0;padding:6px 8px;width:100%}.ai-status{color:#c4b5fd;font:11px/1.35 system-ui;word-break:break-word}.ai-status[data-reframe-ai-warning="true"]{color:#fbbf24}.ai-prompt,.annotation-input,.reference-input{background:rgb(255 255 255/.06);border:1px solid rgb(255 255 255/.12);border-radius:10px;color:#fff;font:12px/1.35 system-ui;padding:8px}.ai-prompt{min-height:52px;resize:vertical;width:100%}.ai-actions{display:flex;flex-wrap:wrap;gap:4px}.mapping{color:#c4b5fd;font:600 11px/1.2 system-ui;min-width:52px}.temporary{color:#fbbf24;font:600 11px/1.2 system-ui}.more-menu{background:#1c1c1e;border-radius:12px;box-shadow:0 12px 40px rgb(0 0 0/.45);display:grid;gap:2px;min-width:160px;padding:6px;pointer-events:auto;position:fixed;z-index:2147483005}.more-item{all:unset;border-radius:8px;color:#f5f5f7;cursor:pointer;font:500 12px/1.35 system-ui;padding:8px 10px;text-align:left}.more-item:hover{background:rgb(255 255 255/.1)}.time-overlay{align-items:center;background:#111827;display:flex;inset:0;justify-content:center;pointer-events:none;position:fixed}.time-overlay img{height:100%;object-fit:contain;width:100%}.source-compare{inset:0;pointer-events:auto;position:fixed;z-index:2147482997}.source-compare[hidden]{display:none}.source-compare iframe{border:0;clip-path:inset(0 calc(100% - var(--compare-pos,50%)) 0 0);height:100%;inset:0;position:fixed;width:100%;z-index:2147482998}.source-compare-handle{background:#a78bfa;bottom:0;box-shadow:0 0 0 1px rgb(255 255 255/.35);cursor:ew-resize;left:var(--compare-pos,50%);pointer-events:auto;position:fixed;top:0;transform:translateX(-50%);width:4px;z-index:2147483000}.source-compare-label{background:#111827dd;border-radius:8px;color:#fff;font:700 12px/1.3 system-ui;left:12px;padding:8px 10px;pointer-events:none;position:absolute;top:12px;z-index:2147483001}.time-label{background:#111827dd;border-radius:8px;color:#fff;font:700 13px/1.3 system-ui;left:12px;padding:8px 10px;position:absolute;top:12px}.history-dialog,.annotation-dialog,.reference-dialog{background:#18181b;border:1px solid rgb(255 255 255/.08);border-radius:14px;box-shadow:0 16px 48px rgb(0 0 0/.55);color:#fff;display:flex;flex-direction:column;font:13px/1.35 system-ui;max-height:calc(100vh - 48px);min-height:0;overflow:hidden;padding:12px 12px 10px;pointer-events:auto;position:fixed;right:12px;top:58px;width:min(480px,calc(100vw - 24px));z-index:2147483004}.history-head,.annotation-head,.reference-head{align-items:center;display:flex;justify-content:space-between}.history-head h2,.annotation-head h2,.reference-head h2{font-size:15px;margin:0}.annotation-list{display:flex;flex-direction:column;gap:8px;margin-top:10px;overflow:auto}.annotation-item{background:rgb(255 255 255/.05);border:1px solid rgb(255 255 255/.08);border-radius:10px;padding:9px}.annotation-item p{margin:3px 0}.history-toolbar{border-bottom:1px solid rgb(255 255 255/.06);display:grid;gap:8px;margin:8px 0 10px;padding-bottom:10px}.history-meta-row{display:grid;gap:2px}.history-actions{align-items:center;display:flex;flex-wrap:wrap;gap:6px}.history-actions .button{background:rgb(255 255 255/.05);border-radius:8px;font:600 11px/1 system-ui;padding:6px 10px}.history-actions .button:hover{background:rgb(255 255 255/.1)}.history-graph-panel{display:flex;flex:1 1 auto;flex-direction:column;min-height:0}.history-graph-header{align-items:center;background:#18181b;border-bottom:1px solid rgb(255 255 255/.06);color:#71717a;display:flex;font:600 10px/1 system-ui;gap:8px;letter-spacing:.1em;padding:7px 4px 8px;position:sticky;text-transform:uppercase;top:0;z-index:2}.history-graph-label{color:#a1a1aa}.history-graph-count{color:#52525b;font-weight:500;margin-right:auto}.history-graph-tools{align-items:center;color:#52525b;display:inline-flex;opacity:.75}.history-graph-tools svg{display:block;height:12px;width:12px}.history-list.history-graph{display:flex;flex:1 1 auto;flex-direction:column;gap:0;max-height:min(440px,52vh);min-height:8rem;overflow:auto;position:relative;scrollbar-color:rgb(255 255 255/.12) transparent;scrollbar-width:thin}.history-list.history-graph::-webkit-scrollbar{width:5px}.history-list.history-graph::-webkit-scrollbar-thumb{background:rgb(255 255 255/.12);border-radius:3px}.history-row.history-item{align-items:stretch;background:transparent;border:none;border-radius:6px;cursor:pointer;display:grid;gap:0;grid-template-columns:32px 1fr;margin:0;padding:1px 4px;position:relative;z-index:1}.history-row.is-alt{background:rgb(255 255 255/.018)}.history-row:hover{background:rgb(255 255 255/.05)!important}.history-row[aria-selected="true"]{background:rgb(59 130 246/.12)!important;box-shadow:inset 2px 0 0 var(--lane-color,#3b82f6)}.history-row[aria-disabled="true"]{opacity:.5}.history-row.is-current .history-summary{font-weight:600}.history-row.is-current .history-hash{color:#c4b5fd}.history-graph-col{flex-shrink:0;height:48px;position:relative;width:32px}.history-graph-node{background:var(--lane-color,#3b82f6);border:2px solid #18181b;border-radius:50%;box-shadow:0 0 0 1px color-mix(in srgb,var(--lane-color,#3b82f6) 65%,transparent);height:9px;left:var(--node-x,16px);position:absolute;top:18px;transform:translateX(-50%);width:9px;z-index:2}.history-graph-node.is-head{background:#a78bfa;border-color:#18181b;box-shadow:0 0 0 2px rgb(167 139 250/.45);height:11px;top:17px;width:11px}.history-graph-svg{left:0;pointer-events:none;position:absolute;top:0;width:32px;z-index:1}.history-graph-line{fill:none;stroke-linecap:round;stroke-width:2}.history-graph-trunk{opacity:.55;stroke-width:2.5}.history-body{display:grid;gap:1px;min-width:0;padding:5px 4px 5px 0}.history-message{align-items:center;color:#f5f5f7;display:flex;font-size:12px;gap:6px;line-height:1.35;min-width:0}.history-summary{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.history-hash{color:#71717a;flex-shrink:0;font:600 11px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:-.02em}.history-badges{align-items:center;display:flex;flex-wrap:wrap;gap:3px}.history-branch-pill{align-items:center;background:var(--pill-bg,rgb(59 130 246/.18));border-radius:999px;color:var(--pill-fg,#93c5fd);display:inline-flex;font:600 9px/1 system-ui;gap:3px;padding:2px 6px}.history-branch-pill.head{background:rgb(124 58 237/.22);color:#ddd6fe}.history-branch-pill.safety{background:rgb(245 158 11/.18);color:#fcd34d}.history-branch-pill.invalid{background:rgb(239 68 68/.14);color:#fca5a5}.history-branch-pill svg{display:block;height:9px;opacity:.9;width:9px}.history-detail{color:#71717a;font-size:10px;line-height:1.35}.history-detail-muted{color:#52525b;font-size:10px;word-break:break-word}.history-current-badge{background:rgb(34 197 94/.22);border-radius:999px;color:#86efac;font:700 8px/1 system-ui;letter-spacing:.04em;padding:2px 6px;text-transform:uppercase}.history-row-actions{margin-top:3px}.history-meta,.annotation-meta{color:#a1a1aa;font-size:11px;margin:0}.annotation-form,.reference-form{display:grid;gap:12px;margin-top:12px;overflow:auto}.annotation-form label{display:grid;gap:3px}.reference-dialog{width:min(560px,calc(100vw - 24px));padding:18px}.reference-section{background:rgb(255 255 255/.03);border:1px solid rgb(255 255 255/.08);border-radius:12px;display:grid;gap:10px;padding:12px}.reference-section-title{color:#e4e4e7;font:700 11px/1 system-ui;letter-spacing:.06em;margin:0;text-transform:uppercase}.reference-field{color:#d4d4d8;display:grid;font:500 12px/1.35 system-ui;gap:5px}.reference-field.reference-check{align-items:center}.reference-fieldset{border:0;margin:0;padding:0}.reference-choices{display:grid;grid-template-columns:1fr 1fr;gap:8px}.reference-choices label{align-items:center;background:rgb(255 255 255/.04);border:1px solid rgb(255 255 255/.08);border-radius:10px;color:#f5f5f7;display:flex;font:500 12px/1.35 system-ui;gap:8px;margin:0;padding:8px 10px}.reference-dropzone{align-items:center;background:rgb(255 255 255/.04);border:1.5px dashed rgb(255 255 255/.18);border-radius:12px;cursor:pointer;display:grid;gap:8px;justify-items:center;min-height:132px;outline:none;padding:16px;text-align:center;transition:border-color .15s,background .15s}.reference-dropzone:focus-visible,.reference-dropzone.is-dragover{border-color:#a78bfa;background:rgb(124 58 237/.1)}.reference-file-input{display:none}.reference-dropzone-text{color:#a1a1aa;font:500 13px/1.4 system-ui;margin:0;max-width:280px}.reference-dropzone-icon{font-size:24px;line-height:1}.reference-choose-file{background:rgb(255 255 255/.08);border-radius:999px;padding:7px 14px}.reference-preview{display:grid;gap:8px;justify-items:center;width:100%}.reference-preview-img{border-radius:10px;box-shadow:0 4px 16px rgb(0 0 0/.35);max-height:160px;max-width:100%;object-fit:contain}.reference-preview-meta{align-items:center;display:flex;flex-wrap:wrap;gap:8px;justify-content:center;width:100%}.reference-preview-name{color:#d4d4d8;font:500 11px/1.3 ui-monospace,monospace;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.reference-clear-file{background:rgb(239 68 68/.18);border-radius:999px;color:#fca5a5;padding:6px 12px}.reference-advanced{background:rgb(255 255 255/.02);border:1px solid rgb(255 255 255/.06);border-radius:10px;padding:0 10px}.reference-advanced-toggle{color:#a1a1aa;cursor:pointer;font:600 11px/1 system-ui;letter-spacing:.04em;list-style:none;padding:10px 0;text-transform:uppercase}.reference-advanced-toggle::-webkit-details-marker{display:none}.reference-advanced-body{display:grid;gap:10px;padding:0 0 12px}.reference-actions{display:grid;gap:8px}.reference-primary{background:linear-gradient(135deg,#7c3aed,#6d28d9);border-radius:12px;font:700 13px/1 system-ui;justify-content:center;padding:11px 16px;text-align:center;width:100%}.reference-primary:hover{background:linear-gradient(135deg,#8b5cf6,#7c3aed)}.reference-secondary{background:rgb(255 255 255/.06);border:1px solid rgb(255 255 255/.1);border-radius:12px;justify-content:center;padding:10px 16px;text-align:center;width:100%}.reference-secondary:disabled{background:rgb(255 255 255/.03);border-color:rgb(255 255 255/.06);color:#71717a;opacity:1}.reference-plan{background:rgb(255 255 255/.05);border:1px solid rgb(255 255 255/.08);border-radius:10px;font:11px/1.35 ui-monospace,monospace;margin:0;max-height:200px;overflow:auto;padding:10px;white-space:pre-wrap}.reference-status{color:#c4b5fd;font-size:12px;line-height:1.4}.annotation-layer{inset:0;pointer-events:none;position:fixed}.annotation-image-wrap{pointer-events:auto;position:fixed;touch-action:none;z-index:2147483000}.annotation-image-wrap img{display:block;height:100%;max-width:none;pointer-events:none;width:100%}.annotation-image-wrap.selected{outline:2px solid #a78bfa;outline-offset:2px}.annotation-image-handle{all:unset;background:#a78bfa;border:2px solid #fff;border-radius:50%;cursor:nwse-resize;height:10px;pointer-events:auto;position:absolute;width:10px}.annotation-image-handle.se{bottom:-5px;right:-5px}.annotation-image-delete{all:unset;background:#ef4444;border-radius:6px;color:#fff;cursor:pointer;font:700 10px/1 system-ui;padding:4px 6px;pointer-events:auto;position:absolute;right:-4px;top:-22px}.comment-tools{align-items:center;display:inline-flex;gap:2px;pointer-events:auto}.annotation-image-handle.nw{top:-5px;left:-5px;cursor:nwse-resize}.annotation-image-handle.ne{top:-5px;right:-5px;cursor:nesw-resize}.annotation-image-handle.sw{bottom:-5px;left:-5px;cursor:nesw-resize}.annotation-image-handle.n{top:-5px;left:calc(50% - 5px);cursor:ns-resize}.annotation-image-handle.s{bottom:-5px;left:calc(50% - 5px);cursor:ns-resize}.annotation-image-handle.w{left:-5px;top:calc(50% - 5px);cursor:ew-resize}.annotation-image-handle.e{right:-5px;top:calc(50% - 5px);cursor:ew-resize}.annotation-layer[data-reframe-annotations-hidden="true"]{display:none}.annotation-pin{all:unset;background:#7c3aed;border:2px solid white;border-radius:50%;color:#fff;cursor:pointer;font:700 11px/20px system-ui;height:20px;pointer-events:auto;position:fixed;text-align:center;width:20px}.annotation-element-outline{border:2px dashed #c4b5fd;background:#7c3aed12;border-radius:4px;pointer-events:none;position:fixed}.annotation-highlight{border:2px solid #a78bfa;background:#7c3aed18;pointer-events:none;position:fixed}.annotation-item-header{align-items:center;display:flex;gap:8px;justify-content:space-between;margin-bottom:4px}.annotation-item-title{font-size:13px;font-weight:600;margin:0}.annotation-status{border-radius:999px;font-size:10px;font-weight:700;letter-spacing:.03em;padding:2px 7px;text-transform:uppercase}.annotation-status.open{background:#7c3aed33;color:#ddd6fe}.annotation-status.resolved{background:#22c55e33;color:#86efac}.annotation-item-comment{color:#f5f5f7;font-size:13px;line-height:1.45;margin:6px 0}.annotation-item-highlight{align-items:center;color:#c4b5fd;display:inline-flex;font-size:10px;font-weight:600;gap:4px;letter-spacing:.02em;margin-top:2px;text-transform:uppercase}.annotation-item-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.annotation-dialog-summary{color:#a1a1aa;font-size:11px;margin:4px 0 0}.annotation-card{background:rgb(255 255 255/.04);border:1px solid rgb(255 255 255/.1);border-radius:14px;display:grid;gap:10px;padding:12px}.annotation-card-head{align-items:flex-start;display:flex;gap:10px;justify-content:space-between}.annotation-chip{align-items:center;background:rgb(124 58 237/.2);border-radius:999px;color:#ddd6fe;display:inline-flex;font:600 10px/1 system-ui;gap:4px;max-width:160px;overflow:hidden;padding:4px 8px;text-overflow:ellipsis;white-space:nowrap}.annotation-time{color:#71717a;font-size:11px}.format-panel{gap:4px;padding:0}.format-panel .button,.format-panel .format-input,.format-panel .format-select{pointer-events:auto}.format-input{width:52px}.format-select{max-width:108px}.format-advanced{display:none!important}.format-color{height:28px;padding:2px;width:36px}.heatmap-layer{inset:0;pointer-events:none;position:fixed;z-index:2147482999}.heatmap-cell{opacity:.55;position:fixed}.annoint-layer{inset:0;pointer-events:none;position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:2147483001}.annoint-svg{display:block;height:100%;pointer-events:none;position:fixed;top:0;left:0;width:100vw;height:100vh}.annoint-tools{align-items:center;display:inline-flex;gap:2px;pointer-events:auto}.chrome-hit-zone{position:fixed;top:12px;left:12px;width:44px;height:44px;pointer-events:none;z-index:2147483005}.chrome[data-reframe-chrome-visible="false"] .chrome-hit-zone{pointer-events:auto}.chrome-hit-zone::after{content:"";position:absolute;top:50%;left:50%;width:8px;height:8px;border-radius:50%;background:rgb(124 58 237/.55);box-shadow:0 0 10px rgb(124 58 237/.35);opacity:0;transform:translate(-50%,-50%);pointer-events:none}.chrome .status-chip,.chrome .toast{opacity:0;transform:translateY(-8px);pointer-events:none;visibility:hidden;transition:opacity .2s ease,transform .2s ease,visibility .2s}.chrome[data-reframe-chrome-visible="true"] .status-chip,.chrome[data-reframe-chrome-visible="true"] .toast{opacity:1;transform:translateY(0);visibility:visible}.chrome[data-reframe-chrome-visible="true"] .status-chip{pointer-events:auto}.chrome[data-reframe-minimal-ui="true"] .brand-mini,.chrome[data-reframe-minimal-ui="true"] .toast,.chrome[data-reframe-minimal-ui="true"] .dot{display:none!important}.status-chip[data-reframe-collapsed="true"]{min-width:44px;min-height:44px;justify-content:center;padding:6px;pointer-events:auto}.status-chip[data-reframe-collapsed="true"] .button[data-reframe-collapse]{width:44px;height:44px}.status-chip[data-reframe-collapsed="true"] .button:not([data-reframe-collapse]),.status-chip[data-reframe-collapsed="true"] .dot,.status-chip[data-reframe-collapsed="true"] .brand-mini{display:none}.context-pill .button{flex-shrink:0}.context-pill.compact{height:38px;padding:3px}.panel-input[data-reframe-text]{display:none!important}.panel.in-design-panel .panel-input[data-reframe-text],.design-panel .panel-input[data-reframe-text]{display:block!important;width:100%}.panel-input.reframe-text-off{display:none!important}.design-section{border:none;border-bottom:1px solid rgb(255 255 255/.06);border-radius:0;margin-bottom:0;overflow:visible}.design-section>summary{align-items:center;background:transparent;border-radius:6px;color:#e4e4e7;cursor:pointer;display:flex;font:500 12px/1.3 system-ui;gap:4px;justify-content:space-between;letter-spacing:0;list-style:none;margin:0 4px;min-height:28px;padding:4px 8px;position:sticky;top:0;z-index:2}.design-section>summary:hover{background:rgb(255 255 255/.06)}.design-section-title{color:inherit;flex:1;font:inherit}.design-section>summary .layers-toggle{cursor:default;pointer-events:none}.design-section[open]>summary{color:#f5f5f7}.design-section>summary::-webkit-details-marker{display:none}.design-section-hint{color:#71717a;font:400 11px/1.4 system-ui;margin:0 0 4px}.design-section-body{display:grid;gap:8px;min-width:0;overflow-x:hidden;padding:0 8px 8px}.design-field{align-items:stretch;color:#d4d4d8;display:grid;font:500 11px/1.35 system-ui;gap:4px;grid-template-columns:1fr;min-width:0;width:100%}.design-field-label{color:#a1a1aa;font:500 11px/1.3 system-ui}.design-field input,.design-field .design-picker,.design-field .design-unit{width:100%}.design-subsection{display:grid;gap:6px;min-width:0;width:100%}.design-subsection-label{color:#e4e4e7;font:500 12px/1.3 system-ui}.design-grid-2{display:grid;gap:8px;grid-template-columns:1fr 1fr;min-width:0;width:100%}.design-grid-2>*,.design-grid-4>*{min-width:0}.design-spacing-block{display:grid;gap:6px;min-width:0;width:100%}.design-spacing-head{align-items:center;display:flex;gap:8px;justify-content:space-between;width:100%}.design-spacing-title{color:#e4e4e7;flex:1;font:500 12px/1.3 system-ui;min-width:0}.design-spacing-actions{align-items:center;display:inline-flex;flex-shrink:0;gap:4px}.design-spacing-uniform{min-width:0;width:100%}.design-spacing-link{background:rgb(255 255 255/.06);border-radius:6px;color:#c4b5fd;flex-shrink:0;font:600 10px/1 system-ui;min-height:24px;min-width:24px;padding:4px 8px}.design-spacing-link[aria-pressed="true"]{background:rgb(124 58 237/.2)}.design-spacing-sides{display:grid;gap:8px;width:100%}.design-layout-grid{display:grid;gap:12px;width:100%}.design-panel .layout-panel{display:contents}.design-panel .layout-field{align-items:stretch;display:flex;flex-direction:column;gap:4px;width:100%}.design-grid-4{display:grid;gap:6px;grid-template-columns:1fr 1fr;min-width:0;width:100%}.design-flex-controls{display:grid;gap:6px;width:100%}.design-flex-controls[hidden]{display:none!important}.design-icon-group{align-items:center;display:inline-flex;gap:2px;width:100%}.design-icon-btn{align-items:center;border-radius:6px;color:#e4e4e7;display:inline-flex;flex:1;font:500 12px/1.3 system-ui;height:28px;justify-content:center;min-height:28px;min-width:0;padding:4px 8px}.design-icon-btn[aria-pressed="true"]{background:rgb(124 58 237/.25);color:#ddd6fe}.design-essential-text[hidden]{display:none!important}.design-panel-tab{background:#1c1c1e;border:1px solid rgb(255 255 255/.08);border-radius:10px 0 0 10px;border-right:0;box-shadow:0 8px 32px rgb(0 0 0/.38);color:#e4e4e7;font:600 11px/1 system-ui;letter-spacing:.04em;padding:10px 6px;pointer-events:auto;position:fixed;right:0;top:50%;transform:translateY(-50%);writing-mode:vertical-rl;z-index:2147483003}.design-panel-tab[hidden]{display:none}.design-panel .panel-input,.design-panel .ai-chat-trigger,.design-panel .design-unit-trigger{max-width:100%;min-height:28px;min-width:0;padding:6px 10px}.design-picker,.design-picker .ai-chat-trigger{width:100%}.design-unit-picker{flex-shrink:0;position:relative}.design-unit-trigger{align-items:center;background:rgb(255 255 255/.06);border:1px solid rgb(255 255 255/.12);border-radius:8px;color:#fff;cursor:pointer;display:inline-flex;font:600 10px/1 system-ui;justify-content:center;min-height:28px;min-width:32px;padding:4px 4px}.design-unit-trigger:hover,.design-unit-trigger[aria-expanded="true"]{background:rgb(255 255 255/.1);border-color:rgb(255 255 255/.18)}.design-unit-menu{left:auto;min-width:72px;right:0}.design-format-panel{display:flex;flex-wrap:wrap;gap:8px;width:100%}.design-panel-scroll{scrollbar-color:rgb(255 255 255/.15) transparent;scrollbar-width:thin}.design-panel-scroll::-webkit-scrollbar{width:6px}.design-panel-scroll::-webkit-scrollbar-thumb{background:rgb(255 255 255/.15);border-radius:3px}.design-unit{align-items:center;display:grid;gap:4px;grid-template-columns:1fr minmax(32px,40px);min-width:0;width:100%}.design-unit-input{min-width:0;width:100%}.design-unit-select{font:500 11px/1 system-ui;padding:4px}.design-panel .layout-radius-field,.design-panel .format-advanced{display:inline-flex!important}.design-panel .edit-toolbar{flex-direction:column;align-items:stretch;gap:6px;max-width:100%;padding:8px}.design-panel .panel{gap:6px;padding:8px}.design-layout-xywh{display:contents}.design-field{gap:4px}.design-section{margin-bottom:0}.design-panel .panel-actions-divider{display:none}.design-panel .panel-metrics{display:inline-flex}.figma-rail{align-items:center;background:#1c1c1e;border-radius:12px;box-shadow:0 8px 32px rgb(0 0 0/.38),0 0 0 1px rgb(255 255 255/.08);display:flex;flex-direction:column;gap:2px;left:12px;padding:6px;pointer-events:auto;position:fixed;top:68px;z-index:2147483004}.figma-rail .button.icon{border-radius:8px;height:36px;width:36px}.figma-rail .button.icon[aria-pressed="true"]{background:rgb(124 58 237/.35);box-shadow:inset 0 0 0 1px rgb(167 139 250/.5)}.figma-rail-divider{background:rgb(255 255 255/.12);height:1px;margin:4px 2px;width:28px}.figma-sidebar{background:#1c1c1e;border:1px solid rgb(255 255 255/.08);border-radius:12px;box-shadow:0 8px 32px rgb(0 0 0/.38);color:#f5f5f7;display:flex;flex-direction:column;font:500 12px/1.35 system-ui;height:calc(100vh - 80px);max-height:calc(100vh - 80px);min-height:0;overflow:hidden;pointer-events:auto;position:fixed;top:68px;z-index:2147483003}.figma-sidebar[hidden]{display:none}.figma-sidebar-head{align-items:center;border-bottom:1px solid rgb(255 255 255/.08);color:#a1a1aa;display:flex;font:600 10px/1 system-ui;justify-content:space-between;letter-spacing:.06em;padding:10px 12px;text-transform:uppercase}.figma-sidebar-body{flex:1 1 auto;min-height:0;overflow:auto;padding:8px}.layers-panel{background:#1e1e1e;border-color:rgb(255 255 255/.06);height:auto;left:64px;max-height:calc(100vh - 100px);min-width:260px;max-width:360px;overflow:hidden;position:relative;width:min(300px,calc(100vw - 88px))}.layers-head{align-items:center;gap:6px;min-height:32px;padding:6px 8px}.layers-head-actions{align-items:center;display:inline-flex;flex-shrink:0;gap:0;margin-left:auto}.layers-head-icon-btn{border-radius:6px;color:#a1a1aa;flex-shrink:0;height:24px!important;min-width:24px!important;opacity:.85;width:24px!important}.layers-head-icon-btn svg{height:14px;width:14px}.layers-head-icon-btn:hover{background:rgb(255 255 255/.08);color:#e4e4e7;opacity:1}.layers-resize-handle{bottom:0;cursor:ew-resize;position:absolute;right:0;top:0;width:6px;z-index:2}.layers-head .layers-title{color:#f5f5f7;font:600 12px/1 system-ui;letter-spacing:0;text-transform:none}.layers-collapse-btn{flex-shrink:0;height:24px!important;min-width:24px!important;opacity:.7;width:24px!important}.layers-collapse-btn:hover{opacity:1}.layers-collapse-btn svg{height:14px;width:14px}.layers-search-wrap{border-bottom:1px solid rgb(255 255 255/.06);padding:6px 8px}.layers-search{background:#2a2a2e;border:1px solid rgb(255 255 255/.08);border-radius:8px;color:#f5f5f7;font:500 12px/1.35 system-ui;padding:6px 10px;width:100%}.layers-search::placeholder{color:#71717a}.layers-search:focus{border-color:rgb(139 92 246/.45);box-shadow:0 0 0 2px rgb(139 92 246/.12);outline:none}.layers-scroll{flex:1 1 auto;min-height:0;overflow-x:hidden;overflow-y:auto;padding:2px 0 0;position:relative;scrollbar-color:rgb(255 255 255/.15) transparent;scrollbar-width:thin}.layers-scroll::-webkit-scrollbar{width:6px}.layers-scroll::-webkit-scrollbar-thumb{background:rgb(255 255 255/.15);border-radius:3px}.layers-tree{display:flex;flex-direction:column;gap:1px;padding:0 4px 2px;position:relative}.layers-group{display:flex;flex-direction:column}.layers-row{align-items:center;border-radius:6px;color:#e4e4e7;cursor:pointer;display:flex;gap:4px;min-height:28px;padding:4px 8px 4px calc(6px + var(--depth,0) * 14px);position:relative;transition:background .12s}.layers-row:hover{background:rgb(255 255 255/.06)}.layers-row.selected{background:rgb(124 58 237/.18);color:#f5f5f7}.layers-row.selected::before{background:#8b5cf6;border-radius:1px;bottom:4px;content:"";left:2px;position:absolute;top:4px;width:2px}.layers-toggle{align-items:center;background:transparent;border:0;border-radius:4px;color:#71717a;cursor:pointer;display:inline-flex;flex-shrink:0;height:18px;justify-content:center;padding:0;width:18px}.layers-toggle:hover{background:rgb(255 255 255/.08);color:#d4d4d8}.layers-toggle svg{display:block;height:12px;pointer-events:none;transition:transform .15s;width:12px}.layers-toggle:not(.expanded) svg{transform:rotate(-90deg)}.layers-toggle-spacer{flex-shrink:0;width:18px}.layers-icon{align-items:center;border-radius:4px;display:inline-flex;flex-shrink:0;font:700 9px/1 system-ui;height:16px;justify-content:center;width:16px}.layers-icon-frame{background:rgb(59 130 246/.18);color:#93c5fd}.layers-icon-frame::before{content:"#";font-size:10px}.layers-icon-text{background:rgb(34 197 94/.15);color:#86efac}.layers-icon-text::before{content:"T"}.layers-icon-heading{background:rgb(168 85 247/.18);color:#d8b4fe}.layers-icon-heading::before{content:"H"}.layers-icon-image{background:rgb(244 114 182/.15);color:#f9a8d4}.layers-icon-image::before{content:"◻";font-size:8px}.layers-icon-button{background:rgb(251 191 36/.15);color:#fcd34d}.layers-icon-button::before{content:"▣";font-size:8px}.layers-icon-input{background:rgb(148 163 184/.15);color:#cbd5e1}.layers-icon-input::before{content:"In";font-size:7px;letter-spacing:-.02em}.layers-name{flex:1;font:500 12px/1.3 system-ui;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.layers-tag{color:#71717a;flex-shrink:0;font:500 10px/1 ui-monospace,monospace;max-width:72px;overflow:hidden;text-overflow:ellipsis;opacity:0;transition:opacity .15s;white-space:nowrap}.layers-row:hover .layers-tag,.layers-row.selected .layers-tag{opacity:1}.layers-row.selected .layers-tag{color:#a78bfa}.layers-row.is-hidden .layers-icon,.layers-row.is-hidden .layers-name{opacity:.45}.layers-row.is-locked .layers-name{color:#a1a1aa}.layers-row.is-dragging{opacity:.55}.layers-drop-indicator{background:#8b5cf6;border-radius:1px;box-shadow:0 0 6px rgb(139 92 246/.55);height:2px;left:4px;margin:0;pointer-events:none;position:absolute;right:4px;z-index:3}.layers-drag-handle{align-items:center;color:#52525b;cursor:grab;display:inline-flex;flex-shrink:0;height:18px;justify-content:center;opacity:0;padding:0;touch-action:none;width:12px}.layers-row:hover .layers-drag-handle,.layers-row.selected .layers-drag-handle,.layers-row:focus-within .layers-drag-handle{opacity:1}.layers-drag-handle:active{cursor:grabbing}.layers-drag-handle svg{display:block;height:12px;pointer-events:none;width:8px}.layers-actions{align-items:center;display:inline-flex;flex-shrink:0;gap:1px;margin-left:2px;opacity:0}.layers-row:hover .layers-actions,.layers-row.selected .layers-actions,.layers-actions:focus-within{opacity:1}.layers-action{align-items:center;background:transparent;border:0;border-radius:4px;color:#71717a;cursor:pointer;display:inline-flex;flex-shrink:0;height:20px;justify-content:center;padding:0;width:20px}.layers-action:hover{background:rgb(255 255 255/.08);color:#e4e4e7}.layers-action[aria-pressed="true"]{color:#a78bfa}.layers-action.is-on{color:#fcd34d}.layers-action svg{display:block;height:12px;pointer-events:none;width:12px}.layers-tree.is-dragging .layers-row{cursor:grabbing}.layers-tree.is-dragging .layers-row:not(.is-dragging){pointer-events:auto}.layers-children{border-left:1px solid rgb(255 255 255/.07);margin:0 0 0 calc(16px + var(--depth,0) * 14px);padding-left:4px}.layers-empty{color:#71717a;font:500 12px/1.4 system-ui;padding:12px;text-align:center}.design-panel{right:12px;width:280px}.figma-sidebar.design-panel{background:#1e1e1e;border-color:rgb(255 255 255/.06)}.design-element-type{color:#71717a;flex:1;font:500 11px/1 system-ui;margin-right:auto;min-width:0;overflow:hidden;text-overflow:ellipsis;text-transform:capitalize;white-space:nowrap}.design-panel .figma-sidebar-body{background:transparent;padding:0}.design-panel .panel{background:transparent;border-radius:0;box-shadow:none;gap:0;max-width:100%;min-width:0;overflow-x:hidden;padding:0;pointer-events:auto;position:static;width:100%}.design-compact-row{align-items:end;display:grid;gap:8px;grid-template-columns:1fr 1fr;min-width:0;width:100%}.design-compact-row>.design-field{min-width:0}.design-wh-row{align-items:end;display:grid;gap:8px;grid-template-columns:1fr 1fr;min-width:0;width:100%}.design-position-align{display:grid;gap:2px;grid-template-columns:repeat(6,1fr);margin-bottom:2px;width:100%}.design-align-btn{align-items:center;background:transparent;border-radius:6px;color:#e4e4e7;display:inline-flex;flex:1;font:500 12px/1.3 system-ui;height:28px;justify-content:center;min-height:28px;min-width:0;padding:4px 8px}.design-align-btn:hover{background:rgb(255 255 255/.06)}.design-fill-row{align-items:center;display:grid;gap:8px;grid-template-columns:32px 1fr;min-width:0;width:100%}.design-fill-swatch{height:28px;min-height:28px;padding:2px;width:32px}.design-hex-input{font:500 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.02em;min-width:0;text-transform:uppercase}.design-type-style-row{align-items:center;display:flex;flex-wrap:wrap;gap:2px;width:100%}.design-type-style-row .button.icon{flex:0 0 28px;height:28px;min-width:28px;width:28px}.design-type-style-row .format-color{flex:0 0 32px;height:28px;width:32px}.design-type-weight-size{align-items:end}.design-action-bar{align-items:center;border-top:1px solid rgb(255 255 255/.06);display:flex;flex-wrap:wrap;gap:6px;padding:6px 8px}.design-panel .panel-input,.design-panel .ai-chat-trigger,.design-panel .design-unit-trigger{background:#2a2a2e;border:1px solid rgb(255 255 255/.08);border-radius:8px;box-shadow:none;color:#f5f5f7;font:500 12px/1.35 system-ui}.design-panel .panel-input:focus,.design-panel .ai-chat-trigger:focus,.design-panel .design-unit-trigger:focus{border-color:rgb(139 92 246/.45);box-shadow:0 0 0 2px rgb(139 92 246/.12);outline:none}.design-panel .layout-input{text-align:left}.design-section[hidden]{display:none!important}.design-panel .edit-toolbar-section{flex-wrap:wrap;width:100%}.design-panel .panel-input[data-reframe-text]{display:block!important;width:100%}.design-position{display:grid;gap:6px;grid-template-columns:1fr 1fr;margin-bottom:8px}.design-position .layout-field{width:100%}.design-position .layout-input{width:100%}.figma-zoom{align-items:center;background:#1c1c1e;border-radius:999px;bottom:16px;box-shadow:0 8px 32px rgb(0 0 0/.38),0 0 0 1px rgb(255 255 255/.08);display:inline-flex;gap:2px;left:50%;padding:4px 6px;pointer-events:auto;position:fixed;transform:translateX(-50%);z-index:2147483004}.figma-zoom .button.icon{border-radius:8px;height:32px;min-width:32px;width:32px}.figma-zoom-label{color:#a1a1aa;font:600 11px/1 ui-monospace,monospace;min-width:44px;text-align:center}:host([data-reframe-tool="hand"]){cursor:grab}:host([data-reframe-tool="hand"][data-reframe-panning="true"]){cursor:grabbing}';
+  const css = ':host{all:initial!important;position:fixed!important;inset:0!important;display:block!important;pointer-events:none!important;z-index:2147483000!important}*{box-sizing:border-box}.chip,.pill{pointer-events:auto;background:#1c1c1e;border-radius:999px;box-shadow:0 8px 32px rgb(0 0 0/.38),0 0 0 1px rgb(255 255 255/.08);color:#f5f5f7}.panel{pointer-events:none;background:#1c1c1e;border-radius:14px;box-shadow:0 8px 32px rgb(0 0 0/.38),0 0 0 1px rgb(255 255 255/.08);color:#f5f5f7}.panel .button,.panel .panel-input{pointer-events:auto}.chrome{position:fixed;top:12px;left:12px;right:12px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;pointer-events:none;z-index:2147483004;min-height:44px}.status-chip{align-items:center;display:inline-flex;flex-wrap:nowrap;gap:4px;height:38px;max-width:calc(100vw - 24px);overflow-x:auto;overflow-y:hidden;padding:4px 8px 4px 10px;pointer-events:auto;position:relative;z-index:1;scrollbar-width:none;-webkit-overflow-scrolling:touch}.status-chip::-webkit-scrollbar{display:none}.status-chip .button{flex-shrink:0}.status-chip .toolbar-divider{align-self:center;background:rgb(255 255 255/.12);flex-shrink:0;height:22px;margin:0 2px;width:1px}.status-chip[data-reframe-collapsed="true"] .toolbar-divider{display:none}.brand-mini{align-items:center;background:linear-gradient(135deg,#7c3aed,#5b45d6);border-radius:8px;color:#fff;display:inline-flex;font:800 11px/1 system-ui;height:22px;justify-content:center;width:22px}.toast{background:#1c1c1ee6;border-radius:10px;color:#e5e7eb;font:500 12px/1.35 system-ui;max-width:min(420px,50vw);padding:8px 12px;pointer-events:none}.context-pill{align-items:center;display:inline-flex;gap:2px;height:42px;padding:4px;position:fixed;z-index:2147483003}.pill-divider{background:rgb(255 255 255/.12);height:18px;margin:0 2px;width:1px}.dot{background:#f59e0b;border-radius:50%;height:8px;margin:0 2px;width:8px}:host([data-reframe-state="connected"]) .dot{background:#22c55e}:host([data-reframe-state="disconnected"]) .dot,:host([data-reframe-state="failed"]) .dot{background:#ef4444}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}.button{all:unset;align-items:center;border-radius:999px;color:#f5f5f7;cursor:pointer;display:inline-flex;font:600 12px/1 system-ui;justify-content:center;white-space:nowrap}.button.icon{flex:0 0 32px;height:32px;line-height:0;min-width:32px;overflow:hidden;padding:0;position:relative;width:32px}.button.icon svg{display:block;flex-shrink:0;height:18px;pointer-events:none;width:18px}.button.icon svg *{vector-effect:non-scaling-stroke}.button:hover,.button[aria-pressed="true"]{background:rgb(255 255 255/.12)}.button:focus-visible,.handle:focus-visible,.annotation-pin:focus-visible{outline:2px solid #a78bfa;outline-offset:2px}.button[aria-disabled="true"],.button:disabled{cursor:not-allowed;opacity:.45}.badge{align-items:center;background:#7c3aed;border-radius:999px;color:#fff;display:inline-flex;font:700 9px/1 system-ui;height:14px;justify-content:center;min-width:14px;padding:0 3px;position:absolute;right:0;top:0}.outline{border:none;display:block;overflow:visible;pointer-events:none;position:fixed}.outline-border{position:absolute;inset:0;border:2px solid #8b5cf6;border-radius:4px;box-shadow:0 0 0 1px rgb(139 92 246/.25);pointer-events:none}.outline.hover{z-index:2147483001}.outline.selected{z-index:2147483005}.outline.hover .outline-border{border-style:dashed}.outline[hidden],.panel[hidden],.ai-panel[hidden],.context-pill[hidden],.more-menu[hidden],.time-overlay[hidden],.history-dialog[hidden],.annotation-dialog[hidden],.reference-dialog[hidden]{display:none}.tag{background:#7c3aed;border-radius:6px;color:#fff;font:600 11px/1.2 system-ui;padding:3px 6px;position:absolute;left:-2px;top:-24px;white-space:nowrap;z-index:1}.tag.tag-below{top:auto;bottom:-24px}.handle{all:unset;background:#8b5cf6;border:2px solid #fff;border-radius:50%;box-shadow:0 2px 8px rgb(0 0 0/.25);cursor:ew-resize;height:12px;pointer-events:auto;position:absolute;right:-8px;top:calc(50% - 8px);width:12px}.handle-bottom{bottom:-8px;left:calc(50% - 8px);right:auto;top:auto;cursor:ns-resize}.handle-move{left:calc(50% - 8px);right:auto;top:-8px;cursor:move}.edit-toolbar{flex-wrap:wrap;gap:4px;padding:6px 8px}.edit-toolbar-section{align-items:center;display:inline-flex;flex-wrap:nowrap;gap:4px;pointer-events:auto}.panel-divider{align-self:stretch;background:rgb(255 255 255/.12);flex-shrink:0;margin:4px 2px;width:1px}.layout-panel{gap:4px;padding:0}.layout-panel .layout-field{align-items:center;display:inline-flex;font:500 11px/1 system-ui;gap:4px}.layout-panel .layout-input{width:52px}.layout-radius-field{display:none}.panel{align-items:center;border-radius:14px;display:flex;flex-wrap:nowrap;font:500 12px/1.2 system-ui;gap:6px;max-width:calc(100vw - 24px);padding:6px 8px;position:fixed;z-index:2147483002}.panel-metrics{color:#a1a1aa;display:inline-flex;font:500 10px/1 ui-monospace,monospace;gap:6px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.panel-input{background:rgb(255 255 255/.06);border:1px solid rgb(255 255 255/.12);border-radius:8px;color:#fff;flex:1;font:12px/1.35 system-ui;min-width:80px;padding:5px 8px}.panel-hint,.mapping,.temporary{display:none}.panel.in-design-panel .panel-hint,.panel.in-design-panel .mapping,.panel.in-design-panel .temporary{display:revert}.ai-chat-label{color:#a1a1aa;display:grid;font:11px/1.3 system-ui;gap:4px}.ai-chat-picker{position:relative;width:100%}.ai-chat-trigger{align-items:center;background:rgb(255 255 255/.06);border:1px solid rgb(255 255 255/.12);border-radius:8px;color:#fff;cursor:pointer;display:flex;font:12px/1.35 system-ui;gap:8px;justify-content:space-between;min-width:0;padding:6px 8px;text-align:left;width:100%}.ai-chat-trigger:hover,.ai-chat-trigger[aria-expanded="true"]{background:rgb(255 255 255/.1);border-color:rgb(255 255 255/.18)}.ai-chat-trigger-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ai-chat-chevron{color:#a1a1aa;flex-shrink:0;font-size:10px;line-height:1;transition:transform .15s}.ai-chat-trigger[aria-expanded="true"] .ai-chat-chevron{transform:rotate(180deg)}.ai-chat-menu{background:#2a2a2e;border:1px solid rgb(255 255 255/.12);border-radius:10px;box-shadow:0 12px 32px rgb(0 0 0/.45);left:0;list-style:none;margin:4px 0 0;max-height:240px;overflow:auto;padding:4px;position:absolute;right:0;z-index:2}.ai-chat-menu[hidden]{display:none}.ai-chat-option{align-items:center;border-radius:8px;color:#f5f5f7;cursor:pointer;display:flex;font:12px/1.35 system-ui;gap:8px;padding:8px 10px;text-align:left;width:100%}.ai-chat-option:hover,.ai-chat-option[aria-selected="true"]{background:rgb(124 58 237/.2)}.ai-chat-option[aria-selected="true"]{color:#ddd6fe}.ai-panel.figma-sidebar{align-items:stretch;background:#1e1e1e;border:1px solid rgb(255 255 255/.08);border-radius:12px;box-shadow:0 8px 32px rgb(0 0 0/.38);color:#f5f5f7;display:flex;flex-direction:column;gap:0;height:min(720px,calc(100vh - 80px));max-height:calc(100vh - 80px);overflow:hidden;padding:0;pointer-events:auto;position:fixed;right:12px;top:68px;width:min(400px,calc(100vw - 88px));z-index:2147483004}.ai-panel-head{border-bottom:1px solid rgb(255 255 255/.08);flex-shrink:0}.ai-panel-scroll{display:grid;flex:1 1 auto;gap:10px;min-height:0;overflow:auto;padding:10px;scrollbar-color:rgb(255 255 255/.15) transparent;scrollbar-width:thin}.ai-panel-scroll::-webkit-scrollbar{width:6px}.ai-panel-scroll::-webkit-scrollbar-thumb{background:rgb(255 255 255/.15);border-radius:3px}.ai-panel-footer{border-top:1px solid rgb(255 255 255/.08);flex-shrink:0;padding:10px}.ai-panel .ai-generate-btn{background:linear-gradient(135deg,#7c3aed,#6d28d9);border-radius:12px;font:700 13px/1 system-ui;justify-content:center;margin:0;padding:11px 16px;width:100%}.ai-panel .ai-generate-btn:hover{background:linear-gradient(135deg,#8b5cf6,#7c3aed)}.ai-attachments{display:flex;flex-wrap:wrap;gap:6px}.ai-attachment-chip{align-items:center;background:rgb(255 255 255/.05);border:1px solid rgb(255 255 255/.1);border-radius:10px;display:inline-flex;gap:8px;max-width:100%;padding:6px 8px}.ai-attachment-chip img{border-radius:6px;height:40px;object-fit:cover;width:40px}.ai-attachment-name{color:#d4d4d8;flex:1;font:500 11px/1.3 ui-monospace,monospace;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ai-attachment-clear{background:rgb(239 68 68/.18);border-radius:999px;color:#fca5a5;font:600 11px/1 system-ui;padding:4px 8px}.ai-reference-section{background:rgb(255 255 255/.02);border:1px solid rgb(255 255 255/.08);border-radius:12px;padding:0 10px}.ai-reference-section>summary{color:#a1a1aa;cursor:pointer;font:600 11px/1 system-ui;letter-spacing:.04em;list-style:none;padding:10px 0;text-transform:uppercase}.ai-reference-section>summary::-webkit-details-marker{display:none}.ai-reference-body{display:grid;gap:10px;padding:0 0 12px}.ai-panel .reference-section{background:rgb(255 255 255/.03);border:1px solid rgb(255 255 255/.08);border-radius:12px;display:grid;gap:10px;padding:12px}.ai-panel .reference-actions{display:grid;gap:8px}.ai-panel .reference-primary,.ai-panel .reference-secondary{width:100%}.ai-panel .reference-plan{max-height:160px}.ai-chat-label,.ai-session-id-label{color:#a1a1aa;display:grid;font:11px/1.3 system-ui;gap:4px;width:100%}.ai-session-id-input{background:rgb(255 255 255/.06);border:1px solid rgb(255 255 255/.12);border-radius:8px;color:#fff;font:12px/1.35 system-ui;min-width:0;padding:6px 8px;width:100%}.ai-status{color:#c4b5fd;font:11px/1.35 system-ui;word-break:break-word}.ai-status[data-reframe-ai-warning="true"]{color:#fbbf24}.ai-prompt,.annotation-input,.reference-input{background:rgb(255 255 255/.06);border:1px solid rgb(255 255 255/.12);border-radius:10px;color:#fff;font:12px/1.35 system-ui;padding:8px}.ai-prompt{min-height:52px;resize:vertical;width:100%}.ai-actions{display:flex;flex-wrap:wrap;gap:4px}.ai-generate-btn{align-self:flex-end;border-radius:10px;margin-top:4px;padding:6px 12px}.mapping{color:#c4b5fd;font:600 11px/1.2 system-ui;min-width:52px}.temporary{color:#fbbf24;font:600 11px/1.2 system-ui}.more-menu{background:#1c1c1e;border-radius:12px;box-shadow:0 12px 40px rgb(0 0 0/.45);display:grid;gap:2px;min-width:160px;padding:6px;pointer-events:auto;position:fixed;z-index:2147483006}.more-item{all:unset;border-radius:8px;color:#f5f5f7;cursor:pointer;font:500 12px/1.35 system-ui;padding:8px 10px;text-align:left}.more-item:hover{background:rgb(255 255 255/.1)}.time-overlay{align-items:center;background:#111827;display:flex;inset:0;justify-content:center;pointer-events:none;position:fixed}.time-overlay img{height:100%;object-fit:contain;width:100%}.source-compare{inset:0;pointer-events:auto;position:fixed;z-index:2147482997}.source-compare[hidden]{display:none}.source-compare iframe{border:0;clip-path:inset(0 calc(100% - var(--compare-pos,50%)) 0 0);height:100%;inset:0;position:fixed;width:100%;z-index:2147482998}.source-compare-handle{background:#a78bfa;bottom:0;box-shadow:0 0 0 1px rgb(255 255 255/.35);cursor:ew-resize;left:var(--compare-pos,50%);pointer-events:auto;position:fixed;top:0;transform:translateX(-50%);width:4px;z-index:2147483000}.source-compare-label{background:#111827dd;border-radius:8px;color:#fff;font:700 12px/1.3 system-ui;left:12px;padding:8px 10px;pointer-events:none;position:absolute;top:12px;z-index:2147483001}.time-label{background:#111827dd;border-radius:8px;color:#fff;font:700 13px/1.3 system-ui;left:12px;padding:8px 10px;position:absolute;top:12px}.history-dialog,.annotation-dialog,.reference-dialog{background:#1e1e1e;border:1px solid rgb(255 255 255/.08);border-radius:10px;box-shadow:0 12px 40px rgb(0 0 0/.5);color:#ccc;display:flex;flex-direction:column;font:13px/1.4 -apple-system,BlinkMacSystemFont,Segoe UI,system-ui,sans-serif;max-height:calc(100vh - 48px);min-height:0;overflow:hidden;padding:0;pointer-events:auto;position:fixed;right:12px;top:58px;width:min(520px,calc(100vw - 24px));z-index:2147483004}.history-head{align-items:center;border-bottom:1px solid rgb(255 255 255/.06);display:flex;justify-content:space-between;padding:10px 12px}.annotation-head,.reference-head{align-items:center;display:flex;justify-content:space-between}.annotation-dialog{padding:12px 12px 10px}.history-head h2,.annotation-head h2,.reference-head h2{color:#e0e0e0;font-size:13px;font-weight:600;margin:0}.annotation-list{display:flex;flex-direction:column;gap:8px;margin-top:10px;overflow:auto}.annotation-item{background:rgb(255 255 255/.05);border:1px solid rgb(255 255 255/.08);border-radius:10px;padding:9px}.annotation-item p{margin:3px 0}.history-toolbar{align-items:center;border-bottom:1px solid rgb(255 255 255/.06);display:flex;flex-wrap:wrap;gap:8px 12px;justify-content:space-between;margin:0;padding:8px 12px}.history-meta-row{align-items:center;display:flex;flex:1 1 auto;flex-wrap:wrap;gap:4px 8px;min-width:0}.history-meta-sep{color:#52525b}.history-actions{align-items:center;display:inline-flex;flex-shrink:0;gap:4px}.history-tool-btn{border-radius:8px;height:28px;min-width:28px;width:28px}.history-tool-btn svg{height:14px;width:14px}.history-restore-toolbar{background:rgb(124 58 237/.16);border-radius:8px;color:#ddd6fe;font:600 11px/1 system-ui;padding:6px 10px}.history-restore-toolbar:hover:not(:disabled){background:rgb(124 58 237/.28)}.history-restore-toolbar:disabled{opacity:.45}.history-graph-panel{background:#1e1e1e;display:flex;flex:1 1 auto;flex-direction:column;min-height:0}.history-graph-header{align-items:center;background:#1e1e1e;border-bottom:1px solid rgb(255 255 255/.06);color:#858585;display:flex;font-size:11px;font-weight:500;gap:6px;letter-spacing:.02em;padding:8px 12px;position:sticky;top:0;z-index:2}.history-graph-label{color:#a1a1aa}.history-graph-count{background:rgb(255 255 255/.06);border-radius:999px;color:#d4d4d8;font:600 10px/1 system-ui;margin-left:auto;padding:2px 7px}.history-list.history-graph{display:flex;flex:1 1 auto;flex-direction:column;gap:0;max-height:min(480px,56vh);min-height:8rem;overflow:auto;position:relative;scrollbar-color:rgb(255 255 255/.12) transparent;scrollbar-width:thin}.history-list.history-graph::-webkit-scrollbar{width:6px}.history-list.history-graph::-webkit-scrollbar-thumb{background:rgb(255 255 255/.12);border-radius:3px}.history-row.history-item{align-items:center;background:transparent;border-bottom:1px solid rgb(255 255 255/.04);border-radius:0;cursor:pointer;display:grid;gap:0;grid-template-columns:32px minmax(0,1fr) auto;margin:0;min-height:46px;padding:0;position:relative;z-index:1}.history-row:hover{background:rgb(255 255 255/.04)!important}.history-row[aria-selected="true"]{background:rgb(78 158 255/.1)!important}.history-row.is-current{background:rgb(124 58 237/.08)!important}.history-row.is-current[aria-selected="true"]{background:rgb(124 58 237/.14)!important}.history-row[aria-disabled="true"]{opacity:.5}.history-row.is-current .history-summary{color:#f4f4f5;font-weight:500}.history-row.is-current .history-hash{color:#c4b5fd}.history-graph-col{align-self:stretch;flex-shrink:0;min-height:46px;position:relative;width:32px}.history-graph-svg{left:0;pointer-events:none;position:absolute;top:0;width:32px;z-index:1}.history-graph-line{fill:none;opacity:.9;stroke-linecap:round;stroke-width:2.5}.history-graph-dot{stroke:#1e1e1e;stroke-width:2}.history-graph-dot.is-head{stroke:#1e1e1e;stroke-width:2.5}.history-graph-dot-ring{fill:#1e1e1e;stroke-width:2}.history-body{display:grid;gap:2px;min-width:0;overflow:hidden;padding:7px 8px 7px 0}.history-message{align-items:center;color:#d4d4d4;display:flex;font-size:12px;gap:6px;line-height:1.3;min-width:0;overflow:hidden}.history-sep{color:#52525b;flex-shrink:0;font-size:11px}.history-summary{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.history-hash{color:#858585;flex-shrink:0;font:500 11px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:-.02em}.history-branch-pill{align-items:center;background:var(--pill-bg,rgb(78 158 255/.16));border-radius:999px;color:var(--pill-fg,#79b8ff);display:inline-flex;flex-shrink:0;font:600 9px/1 system-ui;gap:3px;padding:2px 6px}.history-branch-pill.head{background:rgb(177 128 215/.2);color:#d8b4fe}.history-branch-pill.safety{background:rgb(232 145 45/.16);color:#f0b070}.history-branch-pill.invalid{background:rgb(239 68 68/.14);color:#fca5a5}.history-branch-pill svg{display:block;height:9px;opacity:.9;width:9px}.history-detail{color:#71717a;font-size:10px;line-height:1.35;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.history-detail-muted{color:#6e6e6e;font-size:10px;word-break:break-word}.history-current-badge{background:rgb(45 184 166/.18);border-radius:999px;color:#5eead4;flex-shrink:0;font:700 8px/1 system-ui;letter-spacing:.04em;padding:2px 6px;text-transform:uppercase}.history-row-actions{align-items:center;align-self:stretch;display:flex;flex-shrink:0;justify-content:flex-end;margin:0;padding:0 8px 0 4px}.history-restore-btn{background:transparent;border-radius:6px;color:#a1a1aa;flex-shrink:0;font:500 11px/1 system-ui;padding:4px 8px}.history-restore-btn:hover{background:rgb(255 255 255/.08);color:#e4e4e7}.history-row:hover .history-restore-btn{color:#ddd6fe}.history-meta,.annotation-meta{color:#a1a1aa;font-size:11px;margin:0}.annotation-form,.reference-form{display:grid;gap:12px;margin-top:12px;overflow:auto}.annotation-form label{display:grid;gap:3px}.reference-dialog{width:min(560px,calc(100vw - 24px));padding:18px}.reference-section{background:rgb(255 255 255/.03);border:1px solid rgb(255 255 255/.08);border-radius:12px;display:grid;gap:10px;padding:12px}.reference-section-title{color:#e4e4e7;font:700 11px/1 system-ui;letter-spacing:.06em;margin:0;text-transform:uppercase}.reference-field{color:#d4d4d8;display:grid;font:500 12px/1.35 system-ui;gap:5px}.reference-field.reference-check{align-items:center}.reference-fieldset{border:0;margin:0;padding:0}.reference-choices{display:grid;grid-template-columns:1fr 1fr;gap:8px}.reference-choices label{align-items:center;background:rgb(255 255 255/.04);border:1px solid rgb(255 255 255/.08);border-radius:10px;color:#f5f5f7;display:flex;font:500 12px/1.35 system-ui;gap:8px;margin:0;padding:8px 10px}.reference-dropzone{align-items:center;background:rgb(255 255 255/.04);border:1.5px dashed rgb(255 255 255/.18);border-radius:12px;cursor:pointer;display:grid;gap:8px;justify-items:center;min-height:132px;outline:none;padding:16px;text-align:center;transition:border-color .15s,background .15s}.reference-dropzone:focus-visible,.reference-dropzone.is-dragover{border-color:#a78bfa;background:rgb(124 58 237/.1)}.reference-file-input{display:none}.reference-dropzone-text{color:#a1a1aa;font:500 13px/1.4 system-ui;margin:0;max-width:280px}.reference-dropzone-icon{font-size:24px;line-height:1}.reference-choose-file{background:rgb(255 255 255/.08);border-radius:999px;padding:7px 14px}.reference-preview{display:grid;gap:8px;justify-items:center;width:100%}.reference-preview-img{border-radius:10px;box-shadow:0 4px 16px rgb(0 0 0/.35);max-height:160px;max-width:100%;object-fit:contain}.reference-preview-meta{align-items:center;display:flex;flex-wrap:wrap;gap:8px;justify-content:center;width:100%}.reference-preview-name{color:#d4d4d8;font:500 11px/1.3 ui-monospace,monospace;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.reference-clear-file{background:rgb(239 68 68/.18);border-radius:999px;color:#fca5a5;padding:6px 12px}.reference-advanced{background:rgb(255 255 255/.02);border:1px solid rgb(255 255 255/.06);border-radius:10px;padding:0 10px}.reference-advanced-toggle{color:#a1a1aa;cursor:pointer;font:600 11px/1 system-ui;letter-spacing:.04em;list-style:none;padding:10px 0;text-transform:uppercase}.reference-advanced-toggle::-webkit-details-marker{display:none}.reference-advanced-body{display:grid;gap:10px;padding:0 0 12px}.reference-actions{display:grid;gap:8px}.reference-primary{background:linear-gradient(135deg,#7c3aed,#6d28d9);border-radius:12px;font:700 13px/1 system-ui;justify-content:center;padding:11px 16px;text-align:center;width:100%}.reference-primary:hover{background:linear-gradient(135deg,#8b5cf6,#7c3aed)}.reference-secondary{background:rgb(255 255 255/.06);border:1px solid rgb(255 255 255/.1);border-radius:12px;justify-content:center;padding:10px 16px;text-align:center;width:100%}.reference-secondary:disabled{background:rgb(255 255 255/.03);border-color:rgb(255 255 255/.06);color:#71717a;opacity:1}.reference-plan{background:rgb(255 255 255/.05);border:1px solid rgb(255 255 255/.08);border-radius:10px;font:11px/1.35 ui-monospace,monospace;margin:0;max-height:200px;overflow:auto;padding:10px;white-space:pre-wrap}.reference-status{color:#c4b5fd;font-size:12px;line-height:1.4}.annotation-layer{inset:0;pointer-events:none;position:fixed}.annotation-image-wrap{pointer-events:auto;position:fixed;touch-action:none;z-index:2147483000}.annotation-image-wrap img{display:block;height:100%;max-width:none;pointer-events:none;width:100%}.annotation-image-wrap.selected{outline:2px solid #a78bfa;outline-offset:2px}.annotation-image-handle{all:unset;background:#a78bfa;border:2px solid #fff;border-radius:50%;cursor:nwse-resize;height:10px;pointer-events:auto;position:absolute;width:10px}.annotation-image-handle.se{bottom:-5px;right:-5px}.annotation-image-delete{all:unset;background:#ef4444;border-radius:6px;color:#fff;cursor:pointer;font:700 10px/1 system-ui;padding:4px 6px;pointer-events:auto;position:absolute;right:-4px;top:-22px}.comment-tools{align-items:center;display:inline-flex;gap:2px;pointer-events:auto}.annotation-image-handle.nw{top:-5px;left:-5px;cursor:nwse-resize}.annotation-image-handle.ne{top:-5px;right:-5px;cursor:nesw-resize}.annotation-image-handle.sw{bottom:-5px;left:-5px;cursor:nesw-resize}.annotation-image-handle.n{top:-5px;left:calc(50% - 5px);cursor:ns-resize}.annotation-image-handle.s{bottom:-5px;left:calc(50% - 5px);cursor:ns-resize}.annotation-image-handle.w{left:-5px;top:calc(50% - 5px);cursor:ew-resize}.annotation-image-handle.e{right:-5px;top:calc(50% - 5px);cursor:ew-resize}.annotation-layer[data-reframe-annotations-hidden="true"]{display:none}.annotation-pin{all:unset;background:#7c3aed;border:2px solid white;border-radius:50%;color:#fff;cursor:pointer;font:700 11px/20px system-ui;height:20px;pointer-events:auto;position:fixed;text-align:center;width:20px}.annotation-element-outline{border:2px dashed #c4b5fd;background:#7c3aed12;border-radius:4px;pointer-events:none;position:fixed}.annotation-highlight{border:2px solid #a78bfa;background:#7c3aed18;pointer-events:none;position:fixed}.annotation-item-header{align-items:center;display:flex;gap:8px;justify-content:space-between;margin-bottom:4px}.annotation-item-title{font-size:13px;font-weight:600;margin:0}.annotation-status{border-radius:999px;font-size:10px;font-weight:700;letter-spacing:.03em;padding:2px 7px;text-transform:uppercase}.annotation-status.open{background:#7c3aed33;color:#ddd6fe}.annotation-status.resolved{background:#22c55e33;color:#86efac}.annotation-item-comment{color:#f5f5f7;font-size:13px;line-height:1.45;margin:6px 0}.annotation-item-highlight{align-items:center;color:#c4b5fd;display:inline-flex;font-size:10px;font-weight:600;gap:4px;letter-spacing:.02em;margin-top:2px;text-transform:uppercase}.annotation-item-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.annotation-dialog-summary{color:#a1a1aa;font-size:11px;margin:4px 0 0}.annotation-card{background:rgb(255 255 255/.04);border:1px solid rgb(255 255 255/.1);border-radius:14px;display:grid;gap:10px;padding:12px}.annotation-card-head{align-items:flex-start;display:flex;gap:10px;justify-content:space-between}.annotation-chip{align-items:center;background:rgb(124 58 237/.2);border-radius:999px;color:#ddd6fe;display:inline-flex;font:600 10px/1 system-ui;gap:4px;max-width:160px;overflow:hidden;padding:4px 8px;text-overflow:ellipsis;white-space:nowrap}.annotation-time{color:#71717a;font-size:11px}.format-panel{gap:4px;padding:0}.format-panel .button,.format-panel .format-input,.format-panel .format-select{pointer-events:auto}.format-input{width:52px}.format-select{max-width:108px}.format-advanced{display:none!important}.format-color{height:28px;padding:2px;width:36px}.heatmap-layer{inset:0;pointer-events:none;position:fixed;z-index:2147482999}.heatmap-cell{opacity:.55;position:fixed}.annoint-layer{inset:0;pointer-events:none;position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:2147483001}.annoint-svg{display:block;height:100%;pointer-events:none;position:fixed;top:0;left:0;width:100vw;height:100vh}.annoint-tools{align-items:center;display:inline-flex;gap:2px;pointer-events:auto}.chrome-hit-zone{position:fixed;top:12px;left:12px;width:44px;height:44px;pointer-events:none;z-index:0}.chrome[data-reframe-chrome-visible="false"] .chrome-hit-zone{pointer-events:auto;z-index:2147483005}.chrome[data-reframe-chrome-visible="true"] .chrome-hit-zone{pointer-events:none;z-index:0}.chrome .status-chip .button,.chrome .status-chip .toolbar-divider{pointer-events:auto}.chrome-hit-zone::after{content:"";position:absolute;top:50%;left:50%;width:8px;height:8px;border-radius:50%;background:rgb(124 58 237/.55);box-shadow:0 0 10px rgb(124 58 237/.35);opacity:0;transform:translate(-50%,-50%);pointer-events:none}.chrome .status-chip,.chrome .toast{opacity:0;transform:translateY(-8px);pointer-events:none;visibility:hidden;transition:opacity .2s ease,transform .2s ease,visibility .2s}.chrome[data-reframe-chrome-visible="true"] .status-chip,.chrome[data-reframe-chrome-visible="true"] .toast{opacity:1;transform:translateY(0);visibility:visible}.chrome[data-reframe-chrome-visible="true"] .status-chip{pointer-events:auto;z-index:2}.chrome[data-reframe-minimal-ui="true"] .brand-mini,.chrome[data-reframe-minimal-ui="true"] .toast,.chrome[data-reframe-minimal-ui="true"] .dot{display:none!important}.status-chip[data-reframe-collapsed="true"]{min-width:44px;min-height:44px;justify-content:center;padding:6px;pointer-events:auto}.status-chip[data-reframe-collapsed="true"] .button[data-reframe-collapse]{width:44px;height:44px}.status-chip[data-reframe-collapsed="true"] .button:not([data-reframe-collapse]),.status-chip[data-reframe-collapsed="true"] .dot,.status-chip[data-reframe-collapsed="true"] .brand-mini{display:none}.context-pill .button{flex-shrink:0}.context-pill.compact{height:38px;padding:3px}.panel-input[data-reframe-text]{display:none!important}.panel.in-design-panel .panel-input[data-reframe-text],.design-panel .panel-input[data-reframe-text]{display:block!important;width:100%}.panel-input.reframe-text-off{display:none!important}.design-section{border:none;border-bottom:1px solid rgb(255 255 255/.06);border-radius:0;margin-bottom:0;overflow:visible}.design-section>summary{align-items:center;background:transparent;border-radius:6px;color:#e4e4e7;cursor:pointer;display:flex;font:500 12px/1.3 system-ui;gap:4px;justify-content:space-between;letter-spacing:0;list-style:none;margin:0 4px;min-height:28px;padding:4px 8px;position:sticky;top:0;z-index:2}.design-section>summary:hover{background:rgb(255 255 255/.06)}.design-section-title{color:inherit;flex:1;font:inherit}.design-section>summary .layers-toggle{cursor:default;pointer-events:none}.design-section[open]>summary{color:#f5f5f7}.design-section>summary::-webkit-details-marker{display:none}.design-section-hint{color:#71717a;font:400 11px/1.4 system-ui;margin:0 0 4px}.design-section-body{display:grid;gap:8px;min-width:0;overflow-x:hidden;padding:0 8px 8px}.design-field{align-items:stretch;color:#d4d4d8;display:grid;font:500 11px/1.35 system-ui;gap:4px;grid-template-columns:1fr;min-width:0;width:100%}.design-field-label{color:#a1a1aa;font:500 11px/1.3 system-ui}.design-field input,.design-field .design-picker,.design-field .design-unit{width:100%}.design-subsection{display:grid;gap:6px;min-width:0;width:100%}.design-subsection-label{color:#e4e4e7;font:500 12px/1.3 system-ui}.design-grid-2{display:grid;gap:8px;grid-template-columns:1fr 1fr;min-width:0;width:100%}.design-grid-2>*,.design-grid-4>*{min-width:0}.design-spacing-block{display:grid;gap:6px;min-width:0;width:100%}.design-spacing-head{align-items:center;display:flex;gap:8px;justify-content:space-between;width:100%}.design-spacing-title{color:#e4e4e7;flex:1;font:500 12px/1.3 system-ui;min-width:0}.design-spacing-actions{align-items:center;display:inline-flex;flex-shrink:0;gap:4px}.design-spacing-uniform{min-width:0;width:100%}.design-spacing-link{background:rgb(255 255 255/.06);border-radius:6px;color:#c4b5fd;flex-shrink:0;font:600 10px/1 system-ui;min-height:24px;min-width:24px;padding:4px 8px}.design-spacing-link[aria-pressed="true"]{background:rgb(124 58 237/.2)}.design-spacing-sides{display:grid;gap:8px;width:100%}.design-layout-grid{display:grid;gap:12px;width:100%}.design-panel .layout-panel{display:contents}.design-panel .layout-field{align-items:stretch;display:flex;flex-direction:column;gap:4px;width:100%}.design-grid-4{display:grid;gap:6px;grid-template-columns:1fr 1fr;min-width:0;width:100%}.design-flex-controls{display:grid;gap:6px;width:100%}.design-flex-controls[hidden]{display:none!important}.design-icon-group{align-items:center;display:inline-flex;gap:2px;width:100%}.design-icon-btn{align-items:center;border-radius:6px;color:#e4e4e7;display:inline-flex;flex:1;font:500 12px/1.3 system-ui;height:28px;justify-content:center;min-height:28px;min-width:0;padding:4px 8px}.design-icon-btn[aria-pressed="true"]{background:rgb(124 58 237/.25);color:#ddd6fe}.design-essential-text[hidden]{display:none!important}.design-panel-tab{background:#1c1c1e;border:1px solid rgb(255 255 255/.08);border-radius:10px 0 0 10px;border-right:0;box-shadow:0 8px 32px rgb(0 0 0/.38);color:#e4e4e7;font:600 11px/1 system-ui;letter-spacing:.04em;padding:10px 6px;pointer-events:auto;position:fixed;right:0;top:50%;transform:translateY(-50%);writing-mode:vertical-rl;z-index:2147483003}.design-panel-tab[hidden]{display:none}.design-panel .panel-input,.design-panel .ai-chat-trigger,.design-panel .design-unit-trigger{max-width:100%;min-height:28px;min-width:0;padding:6px 10px}.design-picker,.design-picker .ai-chat-trigger{width:100%}.design-unit-picker{flex-shrink:0;position:relative}.design-unit-trigger{align-items:center;background:rgb(255 255 255/.06);border:1px solid rgb(255 255 255/.12);border-radius:8px;color:#fff;cursor:pointer;display:inline-flex;font:600 10px/1 system-ui;justify-content:center;min-height:28px;min-width:32px;padding:4px 4px}.design-unit-trigger:hover,.design-unit-trigger[aria-expanded="true"]{background:rgb(255 255 255/.1);border-color:rgb(255 255 255/.18)}.design-unit-menu{left:auto;min-width:72px;right:0}.design-format-panel{display:flex;flex-wrap:wrap;gap:8px;width:100%}.design-panel-scroll{scrollbar-color:rgb(255 255 255/.15) transparent;scrollbar-width:thin}.design-panel-scroll::-webkit-scrollbar{width:6px}.design-panel-scroll::-webkit-scrollbar-thumb{background:rgb(255 255 255/.15);border-radius:3px}.design-unit{align-items:center;display:grid;gap:4px;grid-template-columns:1fr minmax(32px,40px);min-width:0;width:100%}.design-unit-input{min-width:0;width:100%}.design-unit-select{font:500 11px/1 system-ui;padding:4px}.design-panel .layout-radius-field,.design-panel .format-advanced{display:inline-flex!important}.design-panel .edit-toolbar{flex-direction:column;align-items:stretch;gap:6px;max-width:100%;padding:8px}.design-panel .panel{gap:6px;padding:8px}.design-layout-xywh{display:contents}.design-field{gap:4px}.design-section{margin-bottom:0}.design-panel .panel-actions-divider{display:none}.design-panel .panel-metrics{display:inline-flex}.figma-rail{align-items:center;background:#1c1c1e;border-radius:12px;box-shadow:0 8px 32px rgb(0 0 0/.38),0 0 0 1px rgb(255 255 255/.08);display:flex;flex-direction:column;gap:2px;left:12px;padding:6px;pointer-events:auto;position:fixed;top:68px;z-index:2147483004}.figma-rail .button.icon{border-radius:8px;height:36px;width:36px}.figma-rail .button.icon[aria-pressed="true"]{background:rgb(124 58 237/.35);box-shadow:inset 0 0 0 1px rgb(167 139 250/.5)}.figma-rail-divider{background:rgb(255 255 255/.12);height:1px;margin:4px 2px;width:28px}.figma-sidebar{background:#1c1c1e;border:1px solid rgb(255 255 255/.08);border-radius:12px;box-shadow:0 8px 32px rgb(0 0 0/.38);color:#f5f5f7;display:flex;flex-direction:column;font:500 12px/1.35 system-ui;height:calc(100vh - 80px);max-height:calc(100vh - 80px);min-height:0;overflow:hidden;pointer-events:auto;position:fixed;top:68px;z-index:2147483003}.figma-sidebar[hidden]{display:none}.figma-sidebar-head{align-items:center;border-bottom:1px solid rgb(255 255 255/.08);color:#a1a1aa;display:flex;font:600 10px/1 system-ui;justify-content:space-between;letter-spacing:.06em;padding:10px 12px;text-transform:uppercase}.figma-sidebar-body{flex:1 1 auto;min-height:0;overflow:auto;padding:8px}.layers-panel{background:#1e1e1e;border-color:rgb(255 255 255/.06);height:auto;left:64px;max-height:calc(100vh - 100px);min-width:300px;max-width:420px;overflow:hidden;position:relative;width:min(340px,calc(100vw - 88px))}.layers-head{align-items:center;gap:6px;min-height:32px;padding:6px 8px}.layers-head-actions{align-items:center;display:inline-flex;flex-shrink:0;gap:0;margin-left:auto}.layers-head-icon-btn{border-radius:6px;color:#a1a1aa;flex-shrink:0;height:24px!important;min-width:24px!important;opacity:.85;width:24px!important}.layers-head-icon-btn svg{height:14px;width:14px}.layers-head-icon-btn:hover{background:rgb(255 255 255/.08);color:#e4e4e7;opacity:1}.layers-resize-handle{bottom:0;cursor:ew-resize;position:absolute;right:0;top:0;width:6px;z-index:2}.layers-head .layers-title{color:#f5f5f7;font:600 12px/1 system-ui;letter-spacing:0;text-transform:none}.layers-collapse-btn{flex-shrink:0;height:24px!important;min-width:24px!important;opacity:.7;width:24px!important}.layers-collapse-btn:hover{opacity:1}.layers-collapse-btn svg{height:14px;width:14px}.layers-search-wrap{border-bottom:1px solid rgb(255 255 255/.06);padding:6px 8px}.layers-search{background:#2a2a2e;border:1px solid rgb(255 255 255/.08);border-radius:8px;color:#f5f5f7;font:500 12px/1.35 system-ui;padding:6px 10px;width:100%}.layers-search::placeholder{color:#71717a}.layers-search:focus{border-color:rgb(139 92 246/.45);box-shadow:0 0 0 2px rgb(139 92 246/.12);outline:none}.layers-scroll{flex:1 1 auto;min-height:0;overflow-x:hidden;overflow-y:auto;padding:2px 0 0;position:relative;scrollbar-color:rgb(255 255 255/.15) transparent;scrollbar-width:thin}.layers-scroll::-webkit-scrollbar{width:6px}.layers-scroll::-webkit-scrollbar-thumb{background:rgb(255 255 255/.15);border-radius:3px}.layers-tree{display:flex;flex-direction:column;gap:0;padding:0 2px 2px;position:relative}.layers-group{display:flex;flex-direction:column}.layers-row{align-items:center;border-radius:6px;color:#e4e4e7;cursor:pointer;display:flex;gap:1px;min-height:24px;padding:2px 4px 2px calc(2px + var(--layer-depth,0)*8px);position:relative;transition:background .12s}.layers-row:hover{background:rgb(255 255 255/.06)}.layers-row.selected{background:rgb(124 58 237/.18);color:#f5f5f7}.layers-row.selected::before{background:#8b5cf6;border-radius:1px;bottom:4px;content:"";left:2px;position:absolute;top:4px;width:2px}.layers-toggle{align-items:center;background:transparent;border:0;border-radius:3px;color:#71717a;cursor:pointer;display:inline-flex;flex-shrink:0;height:14px;justify-content:center;padding:0;width:14px}.layers-toggle:hover{background:rgb(255 255 255/.08);color:#d4d4d8}.layers-toggle svg{display:block;height:10px;pointer-events:none;transition:transform .15s;width:10px}.layers-toggle:not(.expanded) svg{transform:rotate(-90deg)}.layers-toggle-spacer{flex-shrink:0;width:14px}.layers-icon{align-items:center;border-radius:3px;display:inline-flex;flex-shrink:0;font:700 7px/1 system-ui;height:12px;justify-content:center;width:12px}.layers-icon-frame{background:rgb(59 130 246/.18);color:#93c5fd}.layers-icon-frame::before{content:"#";font-size:10px}.layers-icon-text{background:rgb(34 197 94/.15);color:#86efac}.layers-icon-text::before{content:"T"}.layers-icon-heading{background:rgb(168 85 247/.18);color:#d8b4fe}.layers-icon-heading::before{content:"H"}.layers-icon-image{background:rgb(244 114 182/.15);color:#f9a8d4}.layers-icon-image::before{content:"◻";font-size:8px}.layers-icon-button{background:rgb(251 191 36/.15);color:#fcd34d}.layers-icon-button::before{content:"▣";font-size:8px}.layers-icon-input{background:rgb(148 163 184/.15);color:#cbd5e1}.layers-icon-input::before{content:"In";font-size:7px;letter-spacing:-.02em}.layers-name{flex:1;font:500 12px/1.3 system-ui;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.layers-tag{color:#71717a;flex-shrink:0;font:500 9px/1 ui-monospace,monospace;max-width:48px;overflow:hidden;text-overflow:ellipsis;opacity:0;transition:opacity .15s;white-space:nowrap}.layers-row:hover .layers-tag,.layers-row.selected .layers-tag{opacity:1}.layers-row.selected .layers-tag{color:#a78bfa}.layers-row.is-hidden .layers-icon,.layers-row.is-hidden .layers-name{opacity:.45}.layers-row.is-locked .layers-name{color:#a1a1aa}.layers-row.is-dragging{opacity:.55;pointer-events:none}.layers-drop-indicator{background:#8b5cf6;border-radius:1px;box-shadow:0 0 6px rgb(139 92 246/.55);height:2px;left:4px;margin:0;pointer-events:none;position:absolute;right:4px;z-index:3}.layers-drag-handle{align-items:center;background:transparent;border:0;color:#52525b;cursor:grab;display:inline-flex;flex-shrink:0;height:14px;justify-content:center;opacity:0;padding:0;pointer-events:auto;touch-action:none;width:8px}.layers-row:hover .layers-drag-handle,.layers-row.selected .layers-drag-handle,.layers-row:focus-within .layers-drag-handle{opacity:1}.layers-drag-handle:active{cursor:grabbing}.layers-drag-handle svg{display:block;height:10px;pointer-events:none;width:6px}.layers-actions{align-items:center;display:inline-flex;flex-shrink:0;gap:1px;margin-left:2px;opacity:0}.layers-row:hover .layers-actions,.layers-row.selected .layers-actions,.layers-actions:focus-within{opacity:1}.layers-action{align-items:center;background:transparent;border:0;border-radius:3px;color:#71717a;cursor:pointer;display:inline-flex;flex-shrink:0;height:16px;justify-content:center;padding:0;width:16px}.layers-action:hover{background:rgb(255 255 255/.08);color:#e4e4e7}.layers-action[aria-pressed="true"]{color:#a78bfa}.layers-action.is-on{color:#fcd34d}.layers-action svg{display:block;height:10px;pointer-events:none;width:10px}.layers-tree.is-dragging .layers-row{cursor:grabbing}.layers-tree.is-dragging .layers-row:not(.is-dragging){pointer-events:auto}.layers-children{border-left:1px solid rgb(255 255 255/.07);margin:0;padding:0}.layers-empty{color:#71717a;font:500 12px/1.4 system-ui;padding:12px;text-align:center}.design-panel{right:12px;width:280px}.figma-sidebar.design-panel{background:#1e1e1e;border-color:rgb(255 255 255/.06)}.design-element-type{color:#71717a;flex:1;font:500 11px/1 system-ui;margin-right:auto;min-width:0;overflow:hidden;text-overflow:ellipsis;text-transform:capitalize;white-space:nowrap}.design-panel .figma-sidebar-body{background:transparent;padding:0}.design-panel .panel{background:transparent;border-radius:0;box-shadow:none;gap:0;max-width:100%;min-width:0;overflow-x:hidden;padding:0;pointer-events:auto;position:static;width:100%}.design-compact-row{align-items:end;display:grid;gap:8px;grid-template-columns:1fr 1fr;min-width:0;width:100%}.design-compact-row>.design-field{min-width:0}.design-wh-row{align-items:end;display:grid;gap:8px;grid-template-columns:1fr 1fr;min-width:0;width:100%}.design-position-align{display:grid;gap:2px;grid-template-columns:repeat(6,1fr);margin-bottom:2px;width:100%}.design-align-btn{align-items:center;background:transparent;border-radius:6px;color:#e4e4e7;display:inline-flex;flex:1;font:500 12px/1.3 system-ui;height:28px;justify-content:center;min-height:28px;min-width:0;padding:4px 8px}.design-align-btn:hover{background:rgb(255 255 255/.06)}.design-fill-row{align-items:center;display:grid;gap:8px;grid-template-columns:32px 1fr;min-width:0;width:100%}.design-fill-swatch{height:28px;min-height:28px;padding:2px;width:32px}.design-hex-input{font:500 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.02em;min-width:0;text-transform:uppercase}.design-type-style-row{align-items:center;display:flex;flex-wrap:wrap;gap:2px;width:100%}.design-type-style-row .button.icon{flex:0 0 28px;height:28px;min-width:28px;width:28px}.design-type-style-row .format-color{flex:0 0 32px;height:28px;width:32px}.design-type-weight-size{align-items:end}.design-action-bar{align-items:center;border-top:1px solid rgb(255 255 255/.06);display:flex;flex-wrap:wrap;gap:6px;padding:6px 8px}.design-panel .panel-input,.design-panel .ai-chat-trigger,.design-panel .design-unit-trigger{background:#2a2a2e;border:1px solid rgb(255 255 255/.08);border-radius:8px;box-shadow:none;color:#f5f5f7;font:500 12px/1.35 system-ui}.design-panel .panel-input:focus,.design-panel .ai-chat-trigger:focus,.design-panel .design-unit-trigger:focus{border-color:rgb(139 92 246/.45);box-shadow:0 0 0 2px rgb(139 92 246/.12);outline:none}.design-panel .layout-input{text-align:left}.design-section[hidden]{display:none!important}.design-panel .edit-toolbar-section{flex-wrap:wrap;width:100%}.design-panel .panel-input[data-reframe-text]{display:block!important;width:100%}.design-position{display:grid;gap:6px;grid-template-columns:1fr 1fr;margin-bottom:8px}.design-position .layout-field{width:100%}.design-position .layout-input{width:100%}.figma-zoom{align-items:center;background:#1c1c1e;border-radius:999px;bottom:16px;box-shadow:0 8px 32px rgb(0 0 0/.38),0 0 0 1px rgb(255 255 255/.08);display:inline-flex;gap:2px;left:50%;padding:4px 6px;pointer-events:auto;position:fixed;transform:translateX(-50%);z-index:2147483004}.figma-zoom .button.icon{border-radius:8px;height:32px;min-width:32px;width:32px}.figma-zoom-label{color:#a1a1aa;font:600 11px/1 ui-monospace,monospace;min-width:44px;text-align:center}:host([data-reframe-tool="hand"]){cursor:grab}:host([data-reframe-tool="hand"][data-reframe-panning="true"]){cursor:grabbing}.chrome{transition:transform .22s ease}:host([data-reframe-ui-peek="true"]) .chrome{transform:translate(56px,56px)}.element-history-dialog{width:min(440px,calc(100vw - 24px))}.element-history-target{color:#a1a1aa;font-size:11px;margin:0;padding:0 12px 8px}.element-history-list{display:flex;flex-direction:column;gap:6px;max-height:min(50vh,360px);overflow:auto;padding:8px 12px 12px;scrollbar-color:rgb(255 255 255/.12) transparent;scrollbar-width:thin}.element-history-row{align-items:center;border-bottom:1px solid rgb(255 255 255/.04);display:grid;gap:0;grid-template-columns:minmax(0,1fr) auto;min-height:46px;padding:0 8px}.element-history-row:hover{background:rgb(255 255 255/.04)}.element-history-row.is-current{background:rgb(124 58 237/.08)}.element-history-row.is-invalid{opacity:.55}.element-history-summary{display:grid;gap:2px;min-width:0;overflow:hidden;padding:7px 0}.element-history-summary strong{color:#e0e0e0;display:block;font-size:12px;font-weight:500;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.element-history-detail{color:#71717a;font-size:10px;line-height:1.35;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}';
   if ("adoptedStyleSheets" in root && "replaceSync" in CSSStyleSheet.prototype) {
     const sheet = new CSSStyleSheet();
-    sheet.replaceSync(css + '.button[hidden],.comment-tools[hidden]{display:none!important}');
+    sheet.replaceSync(css + showcasePanelCss + '.button[hidden],.comment-tools[hidden]{display:none!important}.mapping.showcase-pulse{animation:showcase-pulse .8s ease 2}@keyframes showcase-pulse{0%,100%{color:#c4b5fd;transform:scale(1)}50%{color:#fff;transform:scale(1.08)}}.showcase-flash{position:fixed;inset:0;background:rgba(124,58,237,.18);opacity:0;pointer-events:none;transition:opacity .12s ease;z-index:2147482996}.showcase-code-split{position:fixed;inset:12px 12px 12px 44%;display:grid;grid-template-columns:1fr 1fr;gap:0;background:#0d0d0f;border:1px solid rgb(255 255 255/.1);border-radius:12px;box-shadow:0 12px 40px rgb(0 0 0/.5);overflow:hidden;pointer-events:none;z-index:2147482995}.showcase-code-pane{background:#0d0d0f;border-right:1px solid rgb(255 255 255/.08);display:flex;flex-direction:column;min-width:0}.showcase-code-tab{background:#1a1a1c;border-bottom:1px solid rgb(255 255 255/.08);color:#e4e4e7;font:600 11px/1 ui-monospace,monospace;padding:8px 12px}.showcase-code-pre{color:#a8a8b0;flex:1;font:11px/1.6 ui-monospace,monospace;margin:0;overflow:auto;padding:12px}.showcase-code-line{display:block;white-space:pre}.showcase-diff-add{background:rgba(34,197,94,.15);color:#4ade80}.showcase-diff-remove{background:rgba(239,68,68,.12);color:#f87171}.showcase-code-preview{background:linear-gradient(180deg,#fafbff,#f4f6fb)}.showcase-comment-pin{align-items:center;background:#7c3aed;border:2px solid #fff;border-radius:50% 50% 50% 0;color:#fff;display:flex;font:700 11px/1 system-ui;height:22px;justify-content:center;pointer-events:none;position:fixed;transform:rotate(-45deg);width:22px;z-index:2147483006}.showcase-comment-bubble{background:#fff;border-radius:10px;box-shadow:0 8px 24px rgb(0 0 0/.2);color:#141a24;font:500 12px/1.4 system-ui;max-width:200px;padding:8px 12px;pointer-events:none;position:fixed;transform:translate(-50%,0);z-index:2147483006}.showcase-collab-chip{align-items:center;background:#fff;border-radius:999px;box-shadow:0 4px 16px rgb(0 0 0/.15);color:#141a24;display:inline-flex;font:600 11px/1 system-ui;gap:6px;padding:6px 12px;pointer-events:none;position:fixed;right:16px;top:64px;z-index:2147483006}.showcase-collab-avatar{align-items:center;background:#5b45d6;border-radius:50%;color:#fff;display:inline-flex;font:700 10px/1 system-ui;height:20px;justify-content:center;width:20px}[hidden].showcase-flash,[hidden].showcase-code-split,[hidden].showcase-comment-pin,[hidden].showcase-comment-bubble,[hidden].showcase-collab-chip{display:none!important}');
     root.adoptedStyleSheets = [sheet];
   } else {
     const style = document.createElement("style");
-    style.textContent = css + '.button[hidden],.comment-tools[hidden]{display:none!important}';
+    style.textContent = css + showcasePanelCss + '.button[hidden],.comment-tools[hidden]{display:none!important}.mapping.showcase-pulse{animation:showcase-pulse .8s ease 2}@keyframes showcase-pulse{0%,100%{color:#c4b5fd;transform:scale(1)}50%{color:#fff;transform:scale(1.08)}}.showcase-flash{position:fixed;inset:0;background:rgba(124,58,237,.18);opacity:0;pointer-events:none;transition:opacity .12s ease;z-index:2147482996}.showcase-code-split{position:fixed;inset:12px 12px 12px 44%;display:grid;grid-template-columns:1fr 1fr;gap:0;background:#0d0d0f;border:1px solid rgb(255 255 255/.1);border-radius:12px;box-shadow:0 12px 40px rgb(0 0 0/.5);overflow:hidden;pointer-events:none;z-index:2147482995}.showcase-code-pane{background:#0d0d0f;border-right:1px solid rgb(255 255 255/.08);display:flex;flex-direction:column;min-width:0}.showcase-code-tab{background:#1a1a1c;border-bottom:1px solid rgb(255 255 255/.08);color:#e4e4e7;font:600 11px/1 ui-monospace,monospace;padding:8px 12px}.showcase-code-pre{color:#a8a8b0;flex:1;font:11px/1.6 ui-monospace,monospace;margin:0;overflow:auto;padding:12px}.showcase-code-line{display:block;white-space:pre}.showcase-diff-add{background:rgba(34,197,94,.15);color:#4ade80}.showcase-diff-remove{background:rgba(239,68,68,.12);color:#f87171}.showcase-code-preview{background:linear-gradient(180deg,#fafbff,#f4f6fb)}.showcase-comment-pin{align-items:center;background:#7c3aed;border:2px solid #fff;border-radius:50% 50% 50% 0;color:#fff;display:flex;font:700 11px/1 system-ui;height:22px;justify-content:center;pointer-events:none;position:fixed;transform:rotate(-45deg);width:22px;z-index:2147483006}.showcase-comment-bubble{background:#fff;border-radius:10px;box-shadow:0 8px 24px rgb(0 0 0/.2);color:#141a24;font:500 12px/1.4 system-ui;max-width:200px;padding:8px 12px;pointer-events:none;position:fixed;transform:translate(-50%,0);z-index:2147483006}.showcase-collab-chip{align-items:center;background:#fff;border-radius:999px;box-shadow:0 4px 16px rgb(0 0 0/.15);color:#141a24;display:inline-flex;font:600 11px/1 system-ui;gap:6px;padding:6px 12px;pointer-events:none;position:fixed;right:16px;top:64px;z-index:2147483006}.showcase-collab-avatar{align-items:center;background:#5b45d6;border-radius:50%;color:#fff;display:inline-flex;font:700 10px/1 system-ui;height:20px;justify-content:center;width:20px}[hidden].showcase-flash,[hidden].showcase-code-split,[hidden].showcase-comment-pin,[hidden].showcase-comment-bubble,[hidden].showcase-collab-chip{display:none!important}';
     root.append(style);
   }
   const template = document.createElement("template");
-  template.innerHTML = '<div class="chrome" role="toolbar" aria-label="Reframe" data-reframe-chrome-visible="false"><div class="chrome-hit-zone" data-reframe-chrome-hit aria-label="Show Reframe toolbar"></div><div class="chip status-chip" role="status" title="Connecting"><span class="brand-mini brand" aria-hidden="true">R</span><span class="dot" aria-hidden="true"></span><span class="sr-only" data-reframe-state-label>Connecting</span><button class="button icon" type="button" data-reframe-select aria-pressed="false" aria-label="Select"></button><button class="button icon" type="button" data-reframe-exit aria-label="Exit"></button><button class="button icon" type="button" data-reframe-test hidden aria-label="Test Connection"></button></div><span class="toast" data-reframe-diagnostic aria-live="polite"></span></div><div class="pill context-pill compact" data-reframe-context role="group" aria-label="Element actions" hidden></div><div class="more-menu" data-reframe-more-menu hidden role="menu"></div><div class="outline hover" data-reframe-hover hidden><span class="tag" data-reframe-hover-label></span></div><div class="outline selected" data-reframe-selected hidden><span class="tag" data-reframe-selected-label></span><button class="handle handle-move" type="button" aria-label="Move element" data-reframe-handle-move></button><button class="handle" type="button" aria-label="Resize width" data-reframe-handle></button><button class="handle handle-bottom" type="button" aria-label="Resize height" data-reframe-handle-height></button></div><div class="panel edit-toolbar" data-reframe-panel hidden><div class="edit-toolbar-section layout-panel" data-reframe-layout-panel><label class="layout-field">X<input class="panel-input layout-input" data-reframe-layout-x type="number" aria-label="X px"></label><label class="layout-field">Y<input class="panel-input layout-input" data-reframe-layout-y type="number" aria-label="Y px"></label><label class="layout-field">W<input class="panel-input layout-input" data-reframe-layout-width type="number" min="1" max="10000" aria-label="Width px"></label><label class="layout-field">H<input class="panel-input layout-input" data-reframe-layout-height type="number" min="1" max="10000" aria-label="Height px"></label><label class="layout-field layout-radius-field">R<input class="panel-input layout-input" data-reframe-layout-radius type="number" min="0" max="999" aria-label="Border radius px"></label></div><span class="panel-divider" data-reframe-format-divider aria-hidden="true"></span><div class="edit-toolbar-section format-panel" data-reframe-format-panel hidden><select class="panel-input format-select" data-reframe-format-font aria-label="Font family"><option value="inherit">Font</option><option value="Arial, sans-serif">Arial</option><option value="Georgia, serif">Georgia</option><option value="system-ui, sans-serif">System</option><option value="monospace">Mono</option></select><button class="button icon format-advanced" type="button" data-reframe-format-smaller aria-label="Decrease font size" hidden>A-</button><button class="button icon format-advanced" type="button" data-reframe-format-larger aria-label="Increase font size" hidden>A+</button><input class="panel-input format-color format-advanced" data-reframe-format-color type="color" aria-label="Text color" value="#f5f5f7" hidden><button class="button icon" type="button" data-reframe-format-bold aria-label="Bold" aria-pressed="false"><strong>B</strong></button><button class="button icon" type="button" data-reframe-format-italic aria-label="Italic" aria-pressed="false"><em>I</em></button><button class="button icon" type="button" data-reframe-format-underline aria-label="Underline" aria-pressed="false"><u>U</u></button><button class="button icon format-advanced" type="button" data-reframe-format-align-left aria-label="Align left" aria-pressed="false" hidden>L</button><button class="button icon format-advanced" type="button" data-reframe-format-align-center aria-label="Align center" aria-pressed="false" hidden>C</button><button class="button icon format-advanced" type="button" data-reframe-format-align-right aria-label="Align right" aria-pressed="false" hidden>R</button></div><span class="panel-divider panel-actions-divider" aria-hidden="true"></span><span class="panel-metrics" data-reframe-metrics hidden><span data-reframe-width></span><span data-reframe-height></span></span><input class="panel-input" data-reframe-text maxlength="4096" placeholder="Edit text" hidden><button class="button icon" type="button" data-reframe-apply aria-label="Save to source"></button><button class="button icon" type="button" data-reframe-cancel aria-label="Deselect"></button><span class="mapping" data-reframe-mapping>Mapping…</span><span class="panel-hint" data-reframe-panel-hint></span><button class="button" type="button" data-reframe-impact hidden>Allow shared edit</button><button class="button" type="button" data-reframe-overlap hidden>Save resize safely</button><span class="temporary" data-reframe-temporary hidden>Temporary preview</span></div>';
-  const contextPill = template.content.querySelector("[data-reframe-context]");
+  template.innerHTML = '<div class="chrome" role="toolbar" aria-label="Reframe" data-reframe-chrome-visible="false"><div class="chrome-hit-zone" data-reframe-chrome-hit aria-label="Show Reframe toolbar"></div><div class="chip status-chip" role="status" title="Connecting"><span class="brand-mini brand" aria-hidden="true">R</span><span class="dot" aria-hidden="true"></span><span class="sr-only" data-reframe-state-label>Connecting</span><button class="button icon" type="button" data-reframe-exit aria-label="Exit"></button><button class="button icon" type="button" data-reframe-test hidden aria-label="Test Connection"></button></div><span class="toast" data-reframe-diagnostic aria-live="polite"></span></div><div class="pill context-pill compact" data-reframe-context role="group" aria-label="Element actions" hidden></div><div class="more-menu" data-reframe-more-menu hidden role="menu"></div><div class="outline hover" data-reframe-hover hidden><span class="outline-border" aria-hidden="true"></span><span class="tag" data-reframe-hover-label></span></div><div class="outline selected" data-reframe-selected hidden><span class="outline-border" aria-hidden="true"></span><span class="tag" data-reframe-selected-label></span><button class="handle handle-move" type="button" aria-label="Move element" data-reframe-handle-move></button><button class="handle" type="button" aria-label="Resize width" data-reframe-handle></button><button class="handle handle-bottom" type="button" aria-label="Resize height" data-reframe-handle-height></button></div><div class="panel edit-toolbar" data-reframe-panel hidden><div class="edit-toolbar-section layout-panel" data-reframe-layout-panel><label class="layout-field">X<input class="panel-input layout-input" data-reframe-layout-x type="number" aria-label="X px"></label><label class="layout-field">Y<input class="panel-input layout-input" data-reframe-layout-y type="number" aria-label="Y px"></label><label class="layout-field">W<input class="panel-input layout-input" data-reframe-layout-width type="number" min="1" max="10000" aria-label="Width px"></label><label class="layout-field">H<input class="panel-input layout-input" data-reframe-layout-height type="number" min="1" max="10000" aria-label="Height px"></label><label class="layout-field layout-radius-field">R<input class="panel-input layout-input" data-reframe-layout-radius type="number" min="0" max="999" aria-label="Border radius px"></label></div><span class="panel-divider" data-reframe-format-divider aria-hidden="true"></span><div class="edit-toolbar-section format-panel" data-reframe-format-panel hidden><select class="panel-input format-select" data-reframe-format-font aria-label="Font family"><option value="inherit">Font</option><option value="Arial, sans-serif">Arial</option><option value="Georgia, serif">Georgia</option><option value="system-ui, sans-serif">System</option><option value="monospace">Mono</option></select><button class="button icon format-advanced" type="button" data-reframe-format-smaller aria-label="Decrease font size" hidden>A-</button><button class="button icon format-advanced" type="button" data-reframe-format-larger aria-label="Increase font size" hidden>A+</button><input class="panel-input format-color format-advanced" data-reframe-format-color type="color" aria-label="Text color" value="#f5f5f7" hidden><button class="button icon" type="button" data-reframe-format-bold aria-label="Bold" aria-pressed="false"><strong>B</strong></button><button class="button icon" type="button" data-reframe-format-italic aria-label="Italic" aria-pressed="false"><em>I</em></button><button class="button icon" type="button" data-reframe-format-underline aria-label="Underline" aria-pressed="false"><u>U</u></button><button class="button icon format-advanced" type="button" data-reframe-format-align-left aria-label="Align left" aria-pressed="false" hidden>L</button><button class="button icon format-advanced" type="button" data-reframe-format-align-center aria-label="Align center" aria-pressed="false" hidden>C</button><button class="button icon format-advanced" type="button" data-reframe-format-align-right aria-label="Align right" aria-pressed="false" hidden>R</button></div><span class="panel-divider panel-actions-divider" aria-hidden="true"></span><span class="panel-metrics" data-reframe-metrics hidden><span data-reframe-width></span><span data-reframe-height></span></span><input class="panel-input" data-reframe-text maxlength="4096" placeholder="Edit text" hidden><button class="button icon" type="button" data-reframe-apply aria-label="Save to source"></button><button class="button icon" type="button" data-reframe-cancel aria-label="Deselect"></button><span class="mapping" data-reframe-mapping>Mapping…</span><span class="panel-hint" data-reframe-panel-hint></span><button class="button" type="button" data-reframe-impact hidden>Allow shared edit</button><button class="button" type="button" data-reframe-overlap hidden>Save resize safely</button><span class="temporary" data-reframe-temporary hidden>Temporary preview</span></div>';
   const moreMenu = template.content.querySelector("[data-reframe-more-menu]");
   const historyMenuButton = document.createElement("button");
   historyMenuButton.className = "button icon";
   historyMenuButton.type = "button";
-  historyMenuButton.hidden = true;
   historyMenuButton.dataset.reframeHistoryBtn = "";
   historyMenuButton.setAttribute("aria-expanded", "false");
-  historyMenuButton.setAttribute("aria-label", "History");
+  historyMenuButton.setAttribute("aria-label", "Visual history");
+  historyMenuButton.title = "Visual history";
   const commentsButton = document.createElement("button");
   commentsButton.className = "button icon";
   commentsButton.type = "button";
-  commentsButton.hidden = true;
   commentsButton.dataset.reframeComments = "";
   commentsButton.setAttribute("aria-expanded", "false");
-  commentsButton.setAttribute("aria-label", "Comments (0)");
+  commentsButton.setAttribute("aria-label", "Add comment");
+  commentsButton.title = "Add comment";
+  const contextHistoryButton = document.createElement("button");
+  contextHistoryButton.className = "button icon";
+  contextHistoryButton.type = "button";
+  contextHistoryButton.dataset.reframeContextHistory = "";
+  contextHistoryButton.setAttribute("aria-label", "Element history");
+  contextHistoryButton.title = "Element history";
+  const contextMoreButton = document.createElement("button");
+  contextMoreButton.className = "button icon";
+  contextMoreButton.type = "button";
+  contextMoreButton.dataset.reframeContextMore = "";
+  contextMoreButton.setAttribute("aria-haspopup", "menu");
+  contextMoreButton.setAttribute("aria-expanded", "false");
+  contextMoreButton.setAttribute("aria-label", "More actions");
+  contextMoreButton.title = "More actions";
   const moreButtonEl = document.createElement("button");
   moreButtonEl.className = "button icon";
   moreButtonEl.type = "button";
@@ -91,62 +122,67 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
   const generateButton = document.createElement("button");
   generateButton.className = "button icon";
   generateButton.type = "button";
-  generateButton.hidden = true;
   generateButton.dataset.reframeGenerate = "";
   generateButton.setAttribute("aria-label", "Generate");
-  contextPill?.prepend(generateButton, historyMenuButton, commentsButton, moreButtonEl);
+  generateButton.title = "Generate with AI";
+  const contextMoreMenu = document.createElement("div");
+  contextMoreMenu.className = "more-menu";
+  contextMoreMenu.dataset.reframeContextMoreMenu = "";
+  contextMoreMenu.hidden = true;
+  contextMoreMenu.setAttribute("role", "menu");
+  const toolbarLayersButton = document.createElement("button");
+  toolbarLayersButton.className = "button icon";
+  toolbarLayersButton.type = "button";
+  toolbarLayersButton.dataset.reframeToolbarLayers = "";
+  toolbarLayersButton.setAttribute("aria-pressed", "true");
+  toolbarLayersButton.setAttribute("aria-label", "Layers panel");
+  toolbarLayersButton.title = "Layers";
+  const toolbarDesignButton = document.createElement("button");
+  toolbarDesignButton.className = "button icon";
+  toolbarDesignButton.type = "button";
+  toolbarDesignButton.dataset.reframeToolbarDesign = "";
+  toolbarDesignButton.setAttribute("aria-pressed", "true");
+  toolbarDesignButton.setAttribute("aria-label", "Design panel");
+  toolbarDesignButton.title = "Design";
+  const referenceButton = document.createElement("button");
+  referenceButton.className = "button icon";
+  referenceButton.type = "button";
+  referenceButton.dataset.reframeReference = "";
+  referenceButton.setAttribute("aria-expanded", "false");
+  referenceButton.setAttribute("aria-label", "Reference adaptation");
+  referenceButton.title = "Reference adaptation";
+  const toolbarDivider = () => { const divider = document.createElement("span"); divider.className = "toolbar-divider"; divider.setAttribute("aria-hidden", "true"); return divider; };
+  const toolbarDividerPrimary = toolbarDivider();
+  const toolbarDividerEdit = toolbarDivider();
+  const toolbarDividerActions = toolbarDivider();
   const aiPanelTemplate = document.createElement("template");
-  aiPanelTemplate.innerHTML = '<div class="ai-panel" data-reframe-ai-panel hidden><label class="ai-chat-label">Codex task<div class="ai-chat-picker" data-reframe-codex-chat><button type="button" class="ai-chat-trigger" data-reframe-codex-chat-trigger aria-haspopup="listbox" aria-expanded="false"><span class="ai-chat-trigger-label" data-reframe-codex-chat-label>New local Codex task</span><span class="ai-chat-chevron" aria-hidden="true">▾</span></button><ul class="ai-chat-menu" data-reframe-codex-chat-menu hidden role="listbox" aria-label="Codex tasks"></ul></div></label><label class="ai-session-id-label">Or paste task ID<input class="ai-session-id-input" data-reframe-codex-session-id placeholder="019dbf28-411e-70a0-91f1-26a965601e16" spellcheck="false"></label><textarea class="ai-prompt" data-reframe-ai-prompt placeholder="Describe the visual change you want."></textarea><span class="ai-status" data-reframe-ai-status>Choose a Codex task, then Generate</span><div class="ai-actions"><button class="button icon" data-reframe-ai-accept hidden aria-label="Accept"></button><button class="button icon" data-reframe-ai-refine hidden aria-label="Refine"></button><button class="button icon" data-reframe-ai-compare hidden aria-label="Compare"></button><button class="button icon" data-reframe-ai-reject hidden aria-label="Reject"></button><button class="button icon" data-reframe-ai-dismiss hidden aria-label="Dismiss"></button><button class="button icon" data-reframe-ai-stop hidden aria-label="Stop"></button></div></div>';
+  aiPanelTemplate.innerHTML = '<div class="ai-panel figma-sidebar" data-reframe-ai-panel hidden role="dialog" aria-labelledby="reframe-ai-title"><div class="figma-sidebar-head layers-head ai-panel-head"><span class="layers-title" id="reframe-ai-title">Generate</span><div class="layers-head-actions"><button class="button icon layers-collapse-btn" type="button" data-reframe-ai-close aria-label="Close generate panel"></button></div></div><div class="figma-sidebar-body ai-panel-scroll" data-reframe-no-tool-shortcuts><label class="ai-chat-label">Codex task<div class="ai-chat-picker" data-reframe-codex-chat><button type="button" class="ai-chat-trigger" data-reframe-codex-chat-trigger aria-haspopup="listbox" aria-expanded="false"><span class="ai-chat-trigger-label" data-reframe-codex-chat-label>New local Codex task</span><span class="ai-chat-chevron" aria-hidden="true">▾</span></button><ul class="ai-chat-menu" data-reframe-codex-chat-menu hidden role="listbox" aria-label="Codex tasks"></ul></div></label><label class="ai-session-id-label">Or paste task ID<input class="ai-session-id-input" data-reframe-codex-session-id data-reframe-no-tool-shortcuts placeholder="019dbf28-411e-70a0-91f1-26a965601e16" spellcheck="false"></label><textarea class="ai-prompt" data-reframe-ai-prompt data-reframe-no-tool-shortcuts placeholder="Describe the visual change you want." rows="4"></textarea><div class="ai-attachments" data-reframe-ai-attachments hidden><div class="ai-attachment-chip" data-reframe-ai-attachment-chip><img data-reframe-ai-attachment-img alt="Pasted reference"><span class="ai-attachment-name" data-reframe-ai-attachment-name>Pasted image</span><button class="button ai-attachment-clear" type="button" data-reframe-ai-attachment-clear>Remove</button></div></div><details class="ai-reference-section" data-reframe-reference-dialog><summary>Reference adaptation</summary><div class="ai-reference-body"><form class="reference-form" data-reframe-reference-form><section class="reference-section"><h3 class="reference-section-title">Source</h3><label class="reference-field">Reference type<div class="ai-chat-picker" data-reframe-reference-kind-picker><input type="hidden" data-reframe-reference-kind value="screenshot"><button type="button" class="ai-chat-trigger" data-reframe-reference-kind-trigger aria-haspopup="listbox" aria-expanded="false"><span class="ai-chat-trigger-label" data-reframe-reference-kind-label>Screenshot</span><span class="ai-chat-chevron" aria-hidden="true">▾</span></button><ul class="ai-chat-menu" data-reframe-reference-kind-menu hidden role="listbox" aria-label="Reference type"><li class="ai-chat-option" role="option" data-reframe-picker-value="screenshot" aria-selected="true">Screenshot</li><li class="ai-chat-option" role="option" data-reframe-picker-value="site-screenshot">Another-site screenshot</li><li class="ai-chat-option" role="option" data-reframe-picker-value="hand-drawn">Hand-drawn mockup</li><li class="ai-chat-option" role="option" data-reframe-picker-value="markdown">Markdown design specification</li><li class="ai-chat-option" role="option" data-reframe-picker-value="figma-export">Figma JSON export</li><li class="ai-chat-option" role="option" data-reframe-picker-value="design-dna">Approved Design DNA reference</li></ul></div></label><div class="reference-source-panel" data-reframe-reference-source-panel><div class="reference-dropzone" data-reframe-reference-dropzone tabindex="0" role="button" aria-label="Paste or drop reference file"><input class="reference-file-input" type="file" data-reframe-reference-file accept="image/png"><div class="reference-dropzone-empty" data-reframe-reference-dropzone-empty><span class="reference-dropzone-icon" aria-hidden="true">📋</span><p class="reference-dropzone-text" data-reframe-reference-dropzone-text>Paste image (Ctrl+V) or drop file here</p><button class="button reference-choose-file" type="button" data-reframe-reference-choose>Choose file</button></div><div class="reference-preview" data-reframe-reference-preview hidden><img class="reference-preview-img" data-reframe-reference-preview-img alt="Reference preview"><div class="reference-preview-meta"><span class="reference-preview-name" data-reframe-reference-preview-name></span><button class="button reference-clear-file" type="button" data-reframe-reference-clear-file>Remove</button></div></div></div></div></section><details class="reference-advanced" data-reframe-reference-advanced><summary class="reference-advanced-toggle">Advanced</summary><div class="reference-advanced-body"><label class="reference-field">Approved DNA reference ID (DNA option only)<input class="reference-input" data-reframe-reference-dna-id maxlength="128"></label><label class="reference-field">Approved DNA version (DNA option only)<input class="reference-input" data-reframe-reference-dna-version maxlength="128"></label><label class="reference-field">Provenance<input class="reference-input" data-reframe-reference-provenance maxlength="500" value="User supplied reference" required></label><label class="reference-field reference-check"><span><input type="checkbox" data-reframe-reference-persist> Keep sanitized reference in .reframe/references</span></label></div></details><section class="reference-section"><h3 class="reference-section-title">Borrow</h3><fieldset class="reference-fieldset"><legend class="sr-only">Borrow only these characteristics</legend><div class="reference-choices" data-reframe-reference-choices><label><input type="checkbox" value="page-structure"> Page structure</label><label><input type="checkbox" value="component-arrangement"> Component arrangement</label><label><input type="checkbox" value="colors"> Colors</label><label><input type="checkbox" value="typography"> Typography</label><label><input type="checkbox" value="interaction-behavior"> Interaction behavior</label><label><input type="checkbox" value="content-density"> Content density</label><label><input type="checkbox" value="navigation-pattern"> Navigation pattern</label><label><input type="checkbox" value="responsive-behavior"> Responsive behavior</label></div></fieldset></section><section class="reference-section"><h3 class="reference-section-title">Options</h3><label class="reference-field">Brand treatment<div class="ai-chat-picker" data-reframe-reference-brand-picker><input type="hidden" data-reframe-reference-brand value="preserve"><button type="button" class="ai-chat-trigger" data-reframe-reference-brand-trigger aria-haspopup="listbox" aria-expanded="false"><span class="ai-chat-trigger-label" data-reframe-reference-brand-label>Preserve this project&apos;s Design DNA</span><span class="ai-chat-chevron" aria-hidden="true">▾</span></button><ul class="ai-chat-menu" data-reframe-reference-brand-menu hidden role="listbox" aria-label="Brand treatment"><li class="ai-chat-option" role="option" data-reframe-picker-value="preserve" aria-selected="true">Preserve this project&apos;s Design DNA</li><li class="ai-chat-option" role="option" data-reframe-picker-value="blend">Blend both designs</li><li class="ai-chat-option" role="option" data-reframe-picker-value="follow">Follow the reference closely</li></ul></div></label><label class="reference-field">Placement<input class="reference-input" data-reframe-reference-placement maxlength="500" placeholder="Select an element on the page first" required></label><label class="reference-field reference-check" data-reframe-reference-unknown-row><span><input type="checkbox" data-reframe-reference-unknown> Confirm evidence/assumptions for <span data-reframe-reference-unknown-target>selected target</span></span></label></section><div class="reference-actions"><button class="button reference-primary" type="submit" data-reframe-reference-build>Build adaptation plan</button><button class="button reference-secondary" type="button" data-reframe-reference-freeze disabled>Approve and freeze plan</button></div><span class="reference-status" data-reframe-reference-status>Select an exactly mapped target first.</span><pre class="reference-plan" data-reframe-reference-plan hidden></pre></form></div></details><span class="ai-status" data-reframe-ai-status>Choose a Codex task, then Generate</span><div class="ai-actions"><button class="button icon" data-reframe-ai-accept hidden aria-label="Accept"></button><button class="button icon" data-reframe-ai-refine hidden aria-label="Refine"></button><button class="button icon" data-reframe-ai-compare hidden aria-label="Compare"></button><button class="button icon" data-reframe-ai-reject hidden aria-label="Reject"></button><button class="button icon" data-reframe-ai-dismiss hidden aria-label="Dismiss"></button><button class="button icon" data-reframe-ai-stop hidden aria-label="Stop"></button></div></div><div class="ai-panel-footer"><button class="button ai-generate-btn" type="button" data-reframe-ai-generate data-reframe-no-tool-shortcuts>Generate</button></div></div>';
   template.content.append(aiPanelTemplate.content.cloneNode(true));
   const timeTemplate = document.createElement("template");
-  timeTemplate.innerHTML = '<div class="time-overlay" data-reframe-time-overlay role="img" aria-label="Previous design comparison" hidden><img data-reframe-time-image alt="Previous design screenshot"><span class="time-label" data-reframe-time-label aria-live="polite">Previous</span></div><div class="source-compare" data-reframe-source-compare hidden><iframe data-reframe-compare-iframe title="Before design"></iframe><div class="source-compare-handle" data-reframe-compare-handle role="slider" aria-label="Compare before and after" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50" tabindex="0"></div><span class="source-compare-label" data-reframe-compare-label>Drag to compare · Esc to close</span></div><section class="history-dialog" data-reframe-history-dialog role="dialog" aria-modal="true" aria-labelledby="reframe-history-title" hidden><div class="history-head"><h2 id="reframe-history-title">Visual history</h2><button class="button" type="button" data-reframe-history-close aria-label="Close visual history">Close</button></div><div class="history-toolbar"><div class="history-meta-row"><p class="history-meta" data-reframe-previous>Previous: original</p><p class="history-meta" data-reframe-current>Current: working tree</p></div><div class="history-actions"><button class="button" type="button" data-reframe-time aria-expanded="false">Hold to view previous</button><button class="button" type="button" data-reframe-source-compare-toggle>Compare source</button><button class="button" type="button" data-reframe-restore disabled aria-disabled="true">Restore Previous</button></div></div><div class="history-graph-panel"><div class="history-graph-header"><span class="history-graph-label">Graph</span><span class="history-graph-count" data-reframe-history-count></span><span class="history-graph-tools" aria-hidden="true"><svg viewBox="0 0 16 16"><path fill="currentColor" d="M2 3h12v1H2zm0 4h8v1H2zm0 4h10v1H2z"/></svg></span></div><div class="history-list history-graph" data-reframe-history-list></div></div></section>';
+  timeTemplate.innerHTML = '<div class="time-overlay" data-reframe-time-overlay role="img" aria-label="Previous design comparison" hidden><img data-reframe-time-image alt="Previous design screenshot"><span class="time-label" data-reframe-time-label aria-live="polite">Previous</span></div><div class="source-compare" data-reframe-source-compare hidden><iframe data-reframe-compare-iframe title="Before design"></iframe><div class="source-compare-handle" data-reframe-compare-handle role="slider" aria-label="Compare before and after" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50" tabindex="0"></div><span class="source-compare-label" data-reframe-compare-label>Drag to compare · Esc to close</span></div><section class="history-dialog" data-reframe-history-dialog role="dialog" aria-modal="true" aria-labelledby="reframe-history-title" hidden><div class="history-head"><h2 id="reframe-history-title">Visual history</h2><button class="button icon layers-collapse-btn" type="button" data-reframe-history-close aria-label="Close visual history" title="Close"></button></div><div class="history-toolbar"><div class="history-meta-row"><span class="history-meta" data-reframe-previous>Previous: original</span><span class="history-meta history-meta-sep" aria-hidden="true">·</span><span class="history-meta" data-reframe-current>Current: working tree</span></div><div class="history-actions"><button class="button icon history-tool-btn" type="button" data-reframe-time aria-expanded="false" aria-label="Hold to view previous" title="Hold to view previous"></button><button class="button icon history-tool-btn" type="button" data-reframe-source-compare-toggle aria-label="Compare source" title="Compare source"></button><button class="button history-restore-toolbar" type="button" data-reframe-restore disabled aria-disabled="true">Restore Previous</button></div></div><div class="history-graph-panel"><div class="history-graph-header"><span class="history-graph-label">Checkpoints</span><span class="history-graph-count" data-reframe-history-count></span></div><div class="history-list history-graph" data-reframe-history-list></div></div></section><section class="history-dialog element-history-dialog" data-reframe-element-history-dialog role="dialog" aria-modal="true" aria-labelledby="reframe-element-history-title" hidden><div class="history-head"><h2 id="reframe-element-history-title">Element history</h2><button class="button" type="button" data-reframe-element-history-close aria-label="Close element history">Close</button></div><p class="element-history-target" data-reframe-element-history-target></p><div class="element-history-list" data-reframe-element-history-list></div></section>';
   template.content.append(timeTemplate.content.cloneNode(true));
   const annotationTemplate = document.createElement("template");
   annotationTemplate.innerHTML = '<div class="annotation-layer" data-reframe-annotation-layer aria-hidden="true"></div><section class="annotation-dialog" data-reframe-annotation-dialog role="dialog" aria-modal="true" aria-labelledby="reframe-annotation-title" hidden><div class="annotation-head"><div><h2 id="reframe-annotation-title">Comments</h2><p class="annotation-dialog-summary" data-reframe-annotation-summary></p></div><button class="button" type="button" data-reframe-annotation-close aria-label="Close comments">Close</button></div><form class="annotation-form" data-reframe-annotation-form hidden><label>Author<input class="annotation-input" data-reframe-annotation-author maxlength="128" value="Local reviewer"></label><label>Comment<textarea class="annotation-input" data-reframe-annotation-comment maxlength="4096" required></textarea></label><label><span><input type="checkbox" data-reframe-annotation-highlight checked> Highlight selected element</span></label><button class="button" type="submit" data-reframe-annotation-save>Save pin</button></form><div class="annotation-list" data-reframe-annotation-list></div></section>';
   template.content.append(annotationTemplate.content.cloneNode(true));
-  const referenceTemplate = document.createElement("template");
-  referenceTemplate.innerHTML = '<section class="reference-dialog" data-reframe-reference-dialog role="dialog" aria-modal="true" aria-labelledby="reframe-reference-title" hidden><div class="reference-head"><h2 id="reframe-reference-title">Reference adaptation</h2><button class="button" type="button" data-reframe-reference-close>Close</button></div><form class="reference-form" data-reframe-reference-form><section class="reference-section"><h3 class="reference-section-title">Source</h3><label class="reference-field">Reference type<div class="ai-chat-picker" data-reframe-reference-kind-picker><input type="hidden" data-reframe-reference-kind value="screenshot"><button type="button" class="ai-chat-trigger" data-reframe-reference-kind-trigger aria-haspopup="listbox" aria-expanded="false"><span class="ai-chat-trigger-label" data-reframe-reference-kind-label>Screenshot</span><span class="ai-chat-chevron" aria-hidden="true">▾</span></button><ul class="ai-chat-menu" data-reframe-reference-kind-menu hidden role="listbox" aria-label="Reference type"><li class="ai-chat-option" role="option" data-reframe-picker-value="screenshot" aria-selected="true">Screenshot</li><li class="ai-chat-option" role="option" data-reframe-picker-value="site-screenshot">Another-site screenshot</li><li class="ai-chat-option" role="option" data-reframe-picker-value="hand-drawn">Hand-drawn mockup</li><li class="ai-chat-option" role="option" data-reframe-picker-value="markdown">Markdown design specification</li><li class="ai-chat-option" role="option" data-reframe-picker-value="figma-export">Figma JSON export</li><li class="ai-chat-option" role="option" data-reframe-picker-value="design-dna">Approved Design DNA reference</li></ul></div></label><div class="reference-source-panel" data-reframe-reference-source-panel><div class="reference-dropzone" data-reframe-reference-dropzone tabindex="0" role="button" aria-label="Paste or drop reference file"><input class="reference-file-input" type="file" data-reframe-reference-file accept="image/png"><div class="reference-dropzone-empty" data-reframe-reference-dropzone-empty><span class="reference-dropzone-icon" aria-hidden="true">📋</span><p class="reference-dropzone-text" data-reframe-reference-dropzone-text>Paste image (Ctrl+V) or drop file here</p><button class="button reference-choose-file" type="button" data-reframe-reference-choose>Choose file</button></div><div class="reference-preview" data-reframe-reference-preview hidden><img class="reference-preview-img" data-reframe-reference-preview-img alt="Reference preview"><div class="reference-preview-meta"><span class="reference-preview-name" data-reframe-reference-preview-name></span><button class="button reference-clear-file" type="button" data-reframe-reference-clear-file>Remove</button></div></div></div></div></section><details class="reference-advanced" data-reframe-reference-advanced><summary class="reference-advanced-toggle">Advanced</summary><div class="reference-advanced-body"><label class="reference-field">Approved DNA reference ID (DNA option only)<input class="reference-input" data-reframe-reference-dna-id maxlength="128"></label><label class="reference-field">Approved DNA version (DNA option only)<input class="reference-input" data-reframe-reference-dna-version maxlength="128"></label><label class="reference-field">Provenance<input class="reference-input" data-reframe-reference-provenance maxlength="500" value="User supplied reference" required></label><label class="reference-field reference-check"><span><input type="checkbox" data-reframe-reference-persist> Keep sanitized reference in .reframe/references</span></label></div></details><section class="reference-section"><h3 class="reference-section-title">Borrow</h3><fieldset class="reference-fieldset"><legend class="sr-only">Borrow only these characteristics</legend><div class="reference-choices" data-reframe-reference-choices><label><input type="checkbox" value="page-structure"> Page structure</label><label><input type="checkbox" value="component-arrangement"> Component arrangement</label><label><input type="checkbox" value="colors"> Colors</label><label><input type="checkbox" value="typography"> Typography</label><label><input type="checkbox" value="interaction-behavior"> Interaction behavior</label><label><input type="checkbox" value="content-density"> Content density</label><label><input type="checkbox" value="navigation-pattern"> Navigation pattern</label><label><input type="checkbox" value="responsive-behavior"> Responsive behavior</label></div></fieldset></section><section class="reference-section"><h3 class="reference-section-title">Options</h3><label class="reference-field">Brand treatment<div class="ai-chat-picker" data-reframe-reference-brand-picker><input type="hidden" data-reframe-reference-brand value="preserve"><button type="button" class="ai-chat-trigger" data-reframe-reference-brand-trigger aria-haspopup="listbox" aria-expanded="false"><span class="ai-chat-trigger-label" data-reframe-reference-brand-label>Preserve this project&apos;s Design DNA</span><span class="ai-chat-chevron" aria-hidden="true">▾</span></button><ul class="ai-chat-menu" data-reframe-reference-brand-menu hidden role="listbox" aria-label="Brand treatment"><li class="ai-chat-option" role="option" data-reframe-picker-value="preserve" aria-selected="true">Preserve this project&apos;s Design DNA</li><li class="ai-chat-option" role="option" data-reframe-picker-value="blend">Blend both designs</li><li class="ai-chat-option" role="option" data-reframe-picker-value="follow">Follow the reference closely</li></ul></div></label><label class="reference-field">Placement<input class="reference-input" data-reframe-reference-placement maxlength="500" placeholder="Select an element on the page first" required></label><label class="reference-field reference-check" data-reframe-reference-unknown-row><span><input type="checkbox" data-reframe-reference-unknown> Confirm evidence/assumptions for <span data-reframe-reference-unknown-target>selected target</span></span></label></section><div class="reference-actions"><button class="button reference-primary" type="submit" data-reframe-reference-build>Build adaptation plan</button><button class="button reference-secondary" type="button" data-reframe-reference-freeze disabled>Approve and freeze plan</button></div><span class="reference-status" data-reframe-reference-status>Select an exactly mapped target first.</span><pre class="reference-plan" data-reframe-reference-plan hidden></pre></form></section>';
-  template.content.append(referenceTemplate.content.cloneNode(true));
   const formatTemplate = document.createElement("template");
   formatTemplate.innerHTML = '<div class="heatmap-layer" data-reframe-heatmap-layer hidden></div><div class="annoint-layer" data-reframe-annoint-layer hidden><svg class="annoint-svg" data-reframe-annoint-svg xmlns="http://www.w3.org/2000/svg"></svg></div>';
   template.content.append(formatTemplate.content.cloneNode(true));
   const figmaTemplate = document.createElement("template");
-  figmaTemplate.innerHTML = '<nav class="figma-rail" data-reframe-tool-rail role="toolbar" aria-label="Figma tools"><button class="button icon" type="button" data-reframe-tool="select" aria-pressed="false" aria-label="Move / Select (V)" title="Move / Select (V)"></button><button class="button icon" type="button" data-reframe-tool="hand" aria-pressed="false" aria-label="Hand / Pan (H)" title="Hand / Pan (H)"></button><button class="button icon" type="button" data-reframe-tool="comment" aria-pressed="false" aria-label="Comment (C)" title="Comment (C)"></button><button class="button icon" type="button" data-reframe-tool="text" aria-pressed="false" aria-label="Text (T)" title="Text (T)"></button><span class="figma-rail-divider" aria-hidden="true"></span><button class="button icon" type="button" data-reframe-paste-figma aria-label="Paste from Figma" title="Paste from Figma — Copy as PNG for full design look"></button><span class="figma-rail-divider" aria-hidden="true"></span><button class="button icon" type="button" data-reframe-layers-toggle aria-pressed="true" aria-label="Toggle layers panel" title="Layers"></button><button class="button icon" type="button" data-reframe-design-toggle aria-pressed="true" aria-label="Toggle design panel" title="Design"></button></nav><aside class="figma-sidebar layers-panel" data-reframe-layers-panel aria-label="Layers"><div class="figma-sidebar-head layers-head"><span class="layers-title">Layers</span><div class="layers-head-actions"><button class="button icon layers-head-icon-btn" type="button" data-reframe-layers-expand-all title="Expand all layers" aria-label="Expand all layers"></button><button class="button icon layers-head-icon-btn" type="button" data-reframe-layers-collapse-all title="Collapse all layers" aria-label="Collapse all layers"></button><button class="button icon layers-collapse-btn" type="button" data-reframe-layers-collapse aria-label="Collapse layers panel" title="Collapse panel"></button></div></div><div class="layers-search-wrap"><input class="layers-search" type="search" placeholder="Search layers" data-reframe-layers-search autocomplete="off" spellcheck="false"></div><div class="figma-sidebar-body layers-scroll"><div class="layers-tree" data-reframe-layers-tree role="tree"></div></div><div class="layers-resize-handle" data-reframe-layers-resize aria-hidden="true"></div></aside><aside class="figma-sidebar design-panel" data-reframe-design-panel hidden aria-label="Design"><div class="figma-sidebar-head layers-head"><span class="layers-title">Design</span><span class="design-element-type" data-reframe-design-element-type>Frame</span><div class="layers-head-actions"><button class="button icon layers-collapse-btn" type="button" data-reframe-design-collapse aria-label="Collapse design panel" title="Collapse panel"></button></div></div><div class="figma-sidebar-body" data-reframe-design-body></div></aside><button class="button design-panel-tab" type="button" data-reframe-design-tab hidden aria-label="Open design panel" title="Design">Design</button><div class="figma-zoom" data-reframe-zoom-controls role="group" aria-label="Zoom"><button class="button icon" type="button" data-reframe-zoom-out aria-label="Zoom out">−</button><span class="figma-zoom-label" data-reframe-zoom-label>100%</span><button class="button icon" type="button" data-reframe-zoom-in aria-label="Zoom in">+</button><button class="button icon" type="button" data-reframe-zoom-fit aria-label="Fit to screen" title="Fit">⤢</button></div>';
+  figmaTemplate.innerHTML = '<nav class="figma-rail" data-reframe-tool-rail role="toolbar" aria-label="Figma tools"><button class="button icon" type="button" data-reframe-tool="select" aria-pressed="false" aria-label="Move / Select (V)" title="Move / Select (V)"></button><button class="button icon" type="button" data-reframe-tool="hand" aria-pressed="false" aria-label="Hand / Pan (H)" title="Hand / Pan (H)"></button><button class="button icon" type="button" data-reframe-tool="comment" aria-pressed="false" aria-label="Comment (C)" title="Comment (C)"></button><button class="button icon" type="button" data-reframe-tool="text" aria-pressed="false" aria-label="Text (T)" title="Text (T)"></button><span class="figma-rail-divider" aria-hidden="true"></span><button class="button icon" type="button" data-reframe-paste-figma aria-label="Paste from Figma" title="Paste from Figma — Copy as PNG or Copy as CSS"></button><span class="figma-rail-divider" aria-hidden="true"></span><button class="button icon" type="button" data-reframe-layers-toggle aria-pressed="true" aria-label="Toggle layers panel" title="Layers"></button><button class="button icon" type="button" data-reframe-design-toggle aria-pressed="true" aria-label="Toggle design panel" title="Design"></button></nav><aside class="figma-sidebar layers-panel" data-reframe-layers-panel aria-label="Layers"><div class="figma-sidebar-head layers-head"><span class="layers-title">Layers</span><div class="layers-head-actions"><button class="button icon layers-head-icon-btn" type="button" data-reframe-layers-expand-all title="Expand all layers" aria-label="Expand all layers"></button><button class="button icon layers-head-icon-btn" type="button" data-reframe-layers-collapse-all title="Collapse all layers" aria-label="Collapse all layers"></button><button class="button icon layers-collapse-btn" type="button" data-reframe-layers-collapse aria-label="Collapse layers panel" title="Collapse panel"></button></div></div><div class="layers-search-wrap"><input class="layers-search" type="search" placeholder="Search layers" data-reframe-layers-search data-reframe-no-tool-shortcuts autocomplete="off" spellcheck="false"></div><div class="figma-sidebar-body layers-scroll"><div class="layers-tree" data-reframe-layers-tree role="tree"></div></div><div class="layers-resize-handle" data-reframe-layers-resize aria-hidden="true"></div></aside><aside class="figma-sidebar design-panel" data-reframe-design-panel hidden aria-label="Design"><div class="figma-sidebar-head layers-head"><span class="layers-title">Design</span><span class="design-element-type" data-reframe-design-element-type>Frame</span><div class="layers-head-actions"><button class="button icon layers-collapse-btn" type="button" data-reframe-design-collapse aria-label="Collapse design panel" title="Collapse panel"></button></div></div><div class="figma-sidebar-body" data-reframe-design-body data-reframe-no-tool-shortcuts></div></aside><button class="button design-panel-tab" type="button" data-reframe-design-tab hidden aria-label="Open design panel" title="Design">Design</button><div class="figma-zoom" data-reframe-zoom-controls role="group" aria-label="Zoom"><button class="button icon" type="button" data-reframe-zoom-out aria-label="Zoom out">−</button><span class="figma-zoom-label" data-reframe-zoom-label>100%</span><button class="button icon" type="button" data-reframe-zoom-in aria-label="Zoom in">+</button><button class="button icon" type="button" data-reframe-zoom-fit aria-label="Fit to screen" title="Fit">⤢</button></div>';
   template.content.append(figmaTemplate.content.cloneNode(true));
   root.append(template.content.cloneNode(true));
+  const contextPillEl = root.querySelector("[data-reframe-context]");
+  contextPillEl?.prepend(generateButton, contextHistoryButton, commentsButton, contextMoreButton);
+  contextPillEl?.insertAdjacentElement("afterend", contextMoreMenu);
   const chrome = root.querySelector(".chrome");
   const chromeHitZone = root.querySelector("[data-reframe-chrome-hit]");
   const statusChip = root.querySelector(".status-chip");
-  const annotationsToggle = document.createElement("button");
-  annotationsToggle.className = "button icon";
-  annotationsToggle.type = "button";
-  annotationsToggle.dataset.reframeAnnotationsToggle = "";
-  annotationsToggle.setAttribute("aria-pressed", "true");
-  annotationsToggle.setAttribute("aria-label", "Hide annotation overlays");
-  statusChip?.insertBefore(annotationsToggle, root.querySelector("[data-reframe-exit]"));
   const collapseButton = document.createElement("button");
   collapseButton.className = "button icon";
   collapseButton.type = "button";
   collapseButton.dataset.reframeCollapse = "";
   collapseButton.setAttribute("aria-expanded", "true");
   collapseButton.setAttribute("aria-label", "Collapse toolbar");
-  statusChip?.insertBefore(collapseButton, root.querySelector("[data-reframe-exit]"));
-  const heatmapToggle = document.createElement("button");
-  heatmapToggle.className = "button icon";
-  heatmapToggle.type = "button";
-  heatmapToggle.dataset.reframeHeatmap = "";
-  heatmapToggle.setAttribute("aria-pressed", "false");
-  heatmapToggle.setAttribute("aria-label", "UX heatmap");
-  heatmapToggle.hidden = true;
-  statusChip?.insertBefore(heatmapToggle, root.querySelector("[data-reframe-exit]"));
-  const commentModeToggle = document.createElement("button");
-  commentModeToggle.className = "button icon";
-  commentModeToggle.type = "button";
-  commentModeToggle.dataset.reframeComment = "";
-  commentModeToggle.dataset.reframeAnnotate = "";
-  commentModeToggle.setAttribute("aria-pressed", "false");
-  commentModeToggle.setAttribute("aria-label", "Comment mode");
-  statusChip?.insertBefore(commentModeToggle, root.querySelector("[data-reframe-exit]"));
   const commentTools = document.createElement("span");
   commentTools.className = "comment-tools";
   commentTools.hidden = true;
@@ -164,7 +200,6 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
   commentRedo.setAttribute("aria-label", "Redo");
   commentRedo.disabled = true;
   commentTools.append(commentUndo, commentRedo);
-  statusChip?.insertBefore(commentTools, root.querySelector("[data-reframe-exit]"));
   const editTools = document.createElement("span");
   editTools.className = "comment-tools";
   editTools.hidden = true;
@@ -187,25 +222,48 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
   editDelete.dataset.reframeEditDelete = "";
   editDelete.setAttribute("aria-label", "Delete or hide selection");
   editTools.append(editUndo, editRedo, editDelete);
-  statusChip?.insertBefore(editTools, root.querySelector("[data-reframe-exit]"));
   const aiReviewButton = document.createElement("button");
   aiReviewButton.className = "button icon";
   aiReviewButton.type = "button";
   aiReviewButton.hidden = true;
   aiReviewButton.dataset.reframeAiReview = "";
   aiReviewButton.setAttribute("aria-label", "Review pending AI edit");
-  statusChip?.insertBefore(aiReviewButton, root.querySelector("[data-reframe-exit]"));
-  const referenceButton = document.createElement("button");
-  referenceButton.type = "button";
-  referenceButton.hidden = true;
-  referenceButton.dataset.reframeReference = "";
-  referenceButton.setAttribute("aria-label", "Reference");
-  root.append(referenceButton);
+  const heatmapToggle = document.createElement("button");
+  heatmapToggle.className = "button icon";
+  heatmapToggle.type = "button";
+  heatmapToggle.dataset.reframeHeatmap = "";
+  heatmapToggle.setAttribute("aria-pressed", "false");
+  heatmapToggle.setAttribute("aria-label", "UX heatmap");
+  heatmapToggle.hidden = true;
+  const commentModeToggle = document.createElement("button");
+  commentModeToggle.className = "button icon";
+  commentModeToggle.type = "button";
+  commentModeToggle.dataset.reframeComment = "";
+  commentModeToggle.dataset.reframeAnnotate = "";
+  commentModeToggle.setAttribute("aria-pressed", "false");
+  commentModeToggle.setAttribute("aria-label", "Comment mode");
+  commentModeToggle.hidden = true;
+  const annotationsToggle = document.createElement("button");
+  annotationsToggle.className = "button icon";
+  annotationsToggle.type = "button";
+  annotationsToggle.dataset.reframeAnnotationsToggle = "";
+  annotationsToggle.setAttribute("aria-pressed", "true");
+  annotationsToggle.setAttribute("aria-label", "Hide annotation overlays");
+  annotationsToggle.hidden = true;
+  const reorderStatusToolbar = () => {
+    if (!statusChip) return;
+    const brand = statusChip.querySelector(".brand-mini");
+    const dot = statusChip.querySelector(".dot");
+    const state = statusChip.querySelector("[data-reframe-state-label]");
+    const exit = root.querySelector("[data-reframe-exit]");
+    const test = root.querySelector("[data-reframe-test]");
+    for (const node of [collapseButton, brand, dot, state, toolbarDividerPrimary, toolbarLayersButton, historyMenuButton, toolbarDesignButton, referenceButton, toolbarDividerEdit, editTools, commentTools, aiReviewButton, toolbarDividerActions, moreButtonEl, exit, test]) if (node) statusChip.append(node);
+  };
+  reorderStatusToolbar();
 
   const stateLabel = root.querySelector("[data-reframe-state-label]");
   const diagnostic = root.querySelector("[data-reframe-diagnostic]");
   const testConnection = root.querySelector("[data-reframe-test]");
-  const select = root.querySelector("[data-reframe-select]");
   const comments = root.querySelector("[data-reframe-comments]");
   const reference = root.querySelector("[data-reframe-reference]");
   const exit = root.querySelector("[data-reframe-exit]");
@@ -225,6 +283,10 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
   const historyList = root.querySelector("[data-reframe-history-list]");
   const historyCount = root.querySelector("[data-reframe-history-count]");
   const historyClose = root.querySelector("[data-reframe-history-close]");
+  const elementHistoryDialog = root.querySelector("[data-reframe-element-history-dialog]");
+  const elementHistoryList = root.querySelector("[data-reframe-element-history-list]");
+  const elementHistoryTarget = root.querySelector("[data-reframe-element-history-target]");
+  const elementHistoryClose = root.querySelector("[data-reframe-element-history-close]");
   const annotationLayer = root.querySelector("[data-reframe-annotation-layer]");
   const annotationDialog = root.querySelector("[data-reframe-annotation-dialog]");
   const annotationClose = root.querySelector("[data-reframe-annotation-close]");
@@ -261,6 +323,12 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
   const aiChatLabel = root.querySelector("[data-reframe-codex-chat-label]");
   const aiSessionId = root.querySelector("[data-reframe-codex-session-id]");
   const aiPrompt = root.querySelector("[data-reframe-ai-prompt]");
+  const aiGenerate = root.querySelector("[data-reframe-ai-generate]");
+  const aiClose = root.querySelector("[data-reframe-ai-close]");
+  const aiAttachments = root.querySelector("[data-reframe-ai-attachments]");
+  const aiAttachmentImg = root.querySelector("[data-reframe-ai-attachment-img]");
+  const aiAttachmentName = root.querySelector("[data-reframe-ai-attachment-name]");
+  const aiAttachmentClear = root.querySelector("[data-reframe-ai-attachment-clear]");
   const aiStatus = root.querySelector("[data-reframe-ai-status]");
   const aiAccept = root.querySelector("[data-reframe-ai-accept]");
   const aiRefine = root.querySelector("[data-reframe-ai-refine]");
@@ -302,10 +370,11 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
   const referenceDropzoneText = root.querySelector("[data-reframe-reference-dropzone-text]");
   const referenceDropzoneEmpty = root.querySelector("[data-reframe-reference-dropzone-empty]");
   const referenceSourcePanel = root.querySelector("[data-reframe-reference-source-panel]");
-  const historyButton = root.querySelector("[data-reframe-history-btn]");
+  const historyButton = historyMenuButton;
   const contextBar = root.querySelector("[data-reframe-context]");
   const formatDivider = root.querySelector("[data-reframe-format-divider]");
   const moreMenuEl = root.querySelector("[data-reframe-more-menu]");
+  const contextMoreMenuEl = root.querySelector("[data-reframe-context-more-menu]");
   const formatPanel = root.querySelector("[data-reframe-format-panel]");
   const layoutPanel = root.querySelector("[data-reframe-layout-panel]");
   const layoutWidth = root.querySelector("[data-reframe-layout-width]");
@@ -858,7 +927,7 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
     const temporary = panel.querySelector("[data-reframe-temporary]");
     const actionBar = document.createElement("div");
     actionBar.className = "design-action-bar";
-    for (const node of [metrics, apply, cancel, mapping, hint, impactBtn, overlapBtn, temporary].filter(Boolean)) actionBar.append(node);
+    for (const node of [metrics, mapping, hint, impactBtn, overlapBtn, temporary].filter(Boolean)) actionBar.append(node);
     panel.replaceChildren(positionSection, layoutSection, appearanceSection, fillSection, typeSection, strokeSection, effectsSection, actionBar);
     if (formatDivider) formatDivider.remove();
     if (actions && actions !== panel) actions.remove();
@@ -927,7 +996,7 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
     undo: lucide('<path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/>'),
     redo: lucide('<path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3L21 13"/>'),
     trash: lucide('<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>'),
-    hand: lucide('<path d="M18 11V6a2 2 0 0 0-4 0"/><path d="M14 10V4a2 2 0 0 0-4 0v8"/><path d="M10 9.5V5a2 2 0 0 0-4 0v9"/><path d="M18 11a2 2 0 1 1 4 0v3a8 8 0 0 1-8 8h-2a8 8 0 0 1-8-8 2 2 0 1 1 4 0"/>'),
+    hand: lucide('<path d="M18 11.5V9a2 2 0 0 0-2-2a2 2 0 0 0-2 2v1.4"/><path d="M14 10V8a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2"/><path d="M10 9.9V9a2 2 0 0 0-2-2a2 2 0 0 0-2 2v5"/><path d="M6 14a2 2 0 0 0-2-2a2 2 0 0 0-2 2"/><path d="M18 11a2 2 0 1 1 4 0v3a8 8 0 0 1-8 8h-4a8 8 0 0 1-8-8 2 2 0 1 1 4 0"/>'),
     text: lucide('<path d="M12 4v16"/><path d="M4 7V5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2"/><path d="M9 20h6"/>'),
     layers: lucide('<path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/>'),
     paste: lucide('<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>'),
@@ -945,14 +1014,19 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
   commentsBadge.className = "badge";
   commentsBadge.hidden = true;
   iconify(testConnection, "test", "Test Connection");
-  iconify(select, "select", "Select");
-  iconify(historyButton, "history", "History");
-  iconify(comments, "comments", "Comments (0)");
+  iconify(historyButton, "history", "Visual history");
+  iconify(contextHistoryButton, "history", "Element history");
+  iconify(comments, "comments", "Add comment");
+  iconify(contextMoreButton, "more", "More actions");
+  iconify(generateButton, "generate", "Generate");
   comments?.append(commentsBadge);
   iconify(annotationsToggle, "annotationsVisible", "Hide annotation overlays");
   const moreButton = root.querySelector("[data-reframe-more]");
   iconify(moreButton, "more", "More actions");
   iconify(collapseButton, "collapse", "Collapse toolbar");
+  iconify(toolbarLayersButton, "layers", "Layers panel");
+  iconify(toolbarDesignButton, "design", "Design panel");
+  iconify(reference, "reference", "Reference adaptation");
   iconify(heatmapToggle, "heatmap", "UX heatmap");
   iconify(aiReviewButton, "aiReview", "Review pending AI edit");
   iconify(commentModeToggle, "comments", "Comment mode");
@@ -961,11 +1035,12 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
   iconify(editUndo, "undo", "Undo edit");
   iconify(editRedo, "redo", "Redo edit");
   iconify(editDelete, "trash", "Delete or hide selection");
-  iconify(generate, "generate", "Generate");
   iconify(exit, "exit", "Exit");
   iconify(apply, "apply", "Save");
   iconify(cancel, "cancel", "Deselect");
   iconify(historyClose, "close", "Close visual history");
+  iconify(time, "eye", "Hold to view previous");
+  iconify(sourceCompareToggle, "compare", "Compare source");
   iconify(annotationClose, "close", "Close comments");
   iconify(aiAccept, "accept", "Accept");
   iconify(aiRefine, "refine", "Refine");
@@ -973,6 +1048,7 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
   iconify(aiReject, "reject", "Reject");
   iconify(aiDismiss, "close", "Dismiss");
   iconify(aiStop, "stop", "Stop");
+  iconify(aiClose, "close", "Close generate panel");
   for (const button of toolButtons) iconify(button, button.dataset.reframeTool === "select" ? "select" : button.dataset.reframeTool === "hand" ? "hand" : button.dataset.reframeTool === "comment" ? "comments" : "text", button.getAttribute("aria-label"));
   iconify(layersToggle, "layers", "Toggle layers panel");
   iconify(layersExpandAll, "expand", "Expand all layers");
@@ -980,32 +1056,66 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
   iconify(layersCollapse, "chevronLeft", "Collapse layers panel");
   iconify(designToggle, "design", "Toggle design panel");
   iconify(designCollapse, "chevronRight", "Collapse design panel");
-  iconify(pasteFigmaButton, "paste", "Paste from Figma — use Copy as PNG for full design look");
+  iconify(pasteFigmaButton, "paste", "Paste from Figma — Copy as PNG or Copy as CSS");
   if (moreMenuEl) {
     const addMoreItem = (label, action) => { const item = document.createElement("button"); item.type = "button"; item.className = "more-item"; item.textContent = label; item.dataset.reframeMoreAction = action; moreMenuEl.append(item); };
-    addMoreItem("Generate with AI", "generate");
-    addMoreItem("Visual history", "history");
     addMoreItem("Comments", "comments");
-    addMoreItem("Reference adaptation", "reference");
+    addMoreItem("Annotation overlays", "annotations");
     addMoreItem("Paste from Figma", "paste-figma");
     addMoreItem("UX heatmap", "heatmap");
     if (debugMode) addMoreItem("Test connection", "test");
   }
+  if (contextMoreMenuEl) {
+    const addContextMoreItem = (label, action) => { const item = document.createElement("button"); item.type = "button"; item.className = "more-item"; item.textContent = label; item.dataset.reframeContextMoreAction = action; contextMoreMenuEl.append(item); };
+    addContextMoreItem("Save to source", "apply");
+    addContextMoreItem("Deselect", "deselect");
+    addContextMoreItem("Reference adaptation", "reference");
+  }
   const closeMoreMenu = () => { if (moreMenuEl) moreMenuEl.hidden = true; moreButton?.setAttribute("aria-expanded", "false"); };
+  const closeContextMoreMenu = () => { if (contextMoreMenuEl) contextMoreMenuEl.hidden = true; contextMoreButton?.setAttribute("aria-expanded", "false"); };
+  const positionMoreMenu = () => {
+    if (!moreMenuEl || !moreButton || moreMenuEl.hidden) return;
+    const rect = moreButton.getBoundingClientRect();
+    const menuWidth = moreMenuEl.offsetWidth || 160;
+    const menuHeight = moreMenuEl.offsetHeight || 1;
+    const gap = 8;
+    let left = rect.right - menuWidth;
+    let top = rect.bottom + gap;
+    if (top + menuHeight > innerHeight - 12) top = rect.top - menuHeight - gap;
+    left = Math.max(12, Math.min(innerWidth - menuWidth - 12, left));
+    top = Math.max(12, Math.min(innerHeight - menuHeight - 12, top));
+    moreMenuEl.style.left = left + "px";
+    moreMenuEl.style.top = top + "px";
+  };
   const toggleMoreMenu = () => {
     if (!moreMenuEl || !moreButton) return;
     const next = moreMenuEl.hidden;
+    closeContextMoreMenu();
     moreMenuEl.hidden = !next;
     moreButton.setAttribute("aria-expanded", String(next));
-    if (next && active?.element) {
-      const rect = active.element.getBoundingClientRect();
-      const anchor = contextBar && !contextBar.hidden ? contextBar : panel;
-      const anchorRect = anchor?.getBoundingClientRect?.();
-      const left = anchorRect ? anchorRect.left : rect.right - 170;
-      const top = anchorRect ? anchorRect.bottom + 8 : rect.top;
-      moreMenuEl.style.left = Math.max(12, Math.min(innerWidth - 180, left)) + "px";
-      moreMenuEl.style.top = Math.max(56, top) + "px";
-    }
+    if (next) positionMoreMenu();
+  };
+  const positionContextMoreMenu = () => {
+    if (!contextMoreMenuEl || !contextMoreButton || contextMoreMenuEl.hidden) return;
+    const rect = contextMoreButton.getBoundingClientRect();
+    const menuWidth = contextMoreMenuEl.offsetWidth || 160;
+    const menuHeight = contextMoreMenuEl.offsetHeight || 1;
+    const gap = 8;
+    let left = rect.right - menuWidth;
+    let top = rect.bottom + gap;
+    if (top + menuHeight > innerHeight - 12) top = rect.top - menuHeight - gap;
+    left = Math.max(12, Math.min(innerWidth - menuWidth - 12, left));
+    top = Math.max(12, Math.min(innerHeight - menuHeight - 12, top));
+    contextMoreMenuEl.style.left = left + "px";
+    contextMoreMenuEl.style.top = top + "px";
+  };
+  const toggleContextMoreMenu = () => {
+    if (!contextMoreMenuEl || !contextMoreButton) return;
+    const next = contextMoreMenuEl.hidden;
+    closeMoreMenu();
+    contextMoreMenuEl.hidden = !next;
+    contextMoreButton.setAttribute("aria-expanded", String(next));
+    if (next) positionContextMoreMenu();
   };
   if (!debugMode && testConnection) testConnection.hidden = true;
   let state = "connecting";
@@ -1021,12 +1131,20 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
   let panDrag;
   let layersPanelVisible = true;
   let designPanelVisible = true;
-  let layersPanelWidth = 300;
+  if (showcaseMode) {
+    layersPanelVisible = false;
+    designPanelVisible = false;
+  }
+  let showcaseUiActive = false;
+  let showcaseTarget;
+  let layersPanelWidth = 340;
   let layersSearchQuery = "";
   const layersCollapsed = new Set();
   const layerRowElements = new WeakMap();
   let layerDrag;
   let layerDropIndicator;
+  let layersTreePending;
+  let suppressLayerRowClick;
   let generation = 0;
   let active;
   let applyTimer;
@@ -1049,10 +1167,13 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
   let referencePendingFile;
   let referencePreviewUrl;
   let frozenReferencePlanId;
+  let aiAttachedImage;
+  let aiAttachmentPreviewUrl;
   let historyState = { currentId: null, previousId: null, canRestore: false, visualComplete: false, gitAvailable: false, dirty: false, incomplete: [], checkpoints: [], comparison: null };
   let timeHold;
   let suppressHistoryClick = false;
   let historyFocus;
+  let elementHistoryFocus;
   let selectedHistoryId;
   let annotationFocus;
   let annotationFrame;
@@ -1065,6 +1186,8 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
   let chromeHideTimer;
   const CHROME_PROXIMITY = 80;
   const CHROME_HIDE_DELAY_MS = 5000;
+  const PEEK_HOTZONE = 56;
+  let uiPeeking = false;
   let heatmapVisible = false;
   let commentMode = false;
   let lastPointer = { x: innerWidth / 2, y: innerHeight / 2 };
@@ -1152,15 +1275,15 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
   const restorePreviewTransform = (selection) => { if (!selection?.element) return; if (selection.original.inlineTransformPresent) selection.element.style.setProperty("transform", selection.original.inlineTransform, selection.original.inlineTransformPriority); else selection.element.style.removeProperty("transform"); };
   const parsePx = (value, fallback = 0) => { const parsed = Number.parseFloat(String(value || "")); return Number.isFinite(parsed) ? parsed : fallback; };
   const syncGenerateButton = () => {
-    if (!generate) return;
-    generate.hidden = false;
+    const btn = generate || generateButton;
+    if (!btn) return;
     const mapped = Boolean(active && ["exact", "probable"].includes(active.mappingConfidence));
-    generate.disabled = !mapped;
-    generate.setAttribute("aria-disabled", String(!mapped));
-    if (!active) generate.title = "";
-    else if (active.mappingConfidence === "pending") generate.title = "Mapping source…";
-    else if (mapped) generate.title = "Generate with AI";
-    else generate.title = "Element is not mapped to source yet";
+    btn.disabled = !mapped;
+    btn.setAttribute("aria-disabled", String(!mapped));
+    if (!active) btn.title = "Generate with AI";
+    else if (active.mappingConfidence === "pending") btn.title = "Mapping source…";
+    else if (mapped) btn.title = "Generate with AI";
+    else btn.title = "Element is not mapped to source yet";
   };
   const syncDesignPanel = () => {
     if (!active) return;
@@ -1222,31 +1345,32 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
     if (layoutY) layoutY.value = String(Math.round(rect.top - ty));
   };
   const syncEditToolbar = () => {
+    const showcaseHasSelection = showcaseMode && showcaseUiActive;
     if (commentTools) commentTools.hidden = !commentMode;
-    if (editTools) editTools.hidden = commentMode || !active || !selectMode;
+    if (editTools) editTools.hidden = commentMode || (!active && !showcaseHasSelection) || !selectMode;
     syncEditUndoButtons();
-    if (!active) return;
-    const showFormat = !commentMode && isTextElement(active.element);
+    syncGenerateButton();
+    if (!active && !showcaseHasSelection) return;
+    const element = active?.element || showcaseTarget;
+    const showFormat = !commentMode && element && isTextElement(element);
     if (formatPanel && !panel?.classList.contains("in-design-panel")) formatPanel.hidden = !showFormat;
     if (formatDivider) formatDivider.hidden = !showFormat;
-    const showContext = !commentMode;
-    if (contextBar) contextBar.hidden = !showContext;
-    if (comments) comments.hidden = !showContext;
-    if (generate) generate.hidden = !showContext;
-    if (historyButton) historyButton.hidden = !showContext;
-    if (designPanel) designPanel.hidden = commentMode || !active || !designPanelVisible;
-    if (designTab) designTab.hidden = commentMode || !active || designPanelVisible;
+    if (contextBar) contextBar.hidden = commentMode || (!active && !showcaseHasSelection) || !selectMode;
+    if (designPanel) designPanel.hidden = commentMode || (!active && !showcaseHasSelection) || !designPanelVisible;
+    if (designTab) designTab.hidden = commentMode || (!active && !showcaseHasSelection) || designPanelVisible;
     if (textInput) { textInput.hidden = false; textInput.classList.toggle("reframe-text-off", !showFormat && activeTool !== "text"); }
-    syncDesignPanel();
+    if (active) syncDesignPanel();
+    else if (showcaseHasSelection && designElementType && showcaseTarget) designElementType.textContent = elementTypeLabel(showcaseTarget);
   };
   const syncToolUi = () => {
     host.dataset.reframeTool = activeTool;
     for (const button of toolButtons) button.setAttribute("aria-pressed", String(button.dataset.reframeTool === activeTool));
-    select?.setAttribute("aria-pressed", String(selectMode));
     if (commentModeToggle) commentModeToggle.setAttribute("aria-pressed", String(commentMode));
     if (layersPanel) { layersPanel.hidden = !layersPanelVisible; layersPanel.style.width = layersPanelWidth + "px"; }
     if (layersToggle) layersToggle.setAttribute("aria-pressed", String(layersPanelVisible));
+    if (toolbarLayersButton) toolbarLayersButton.setAttribute("aria-pressed", String(layersPanelVisible));
     if (designToggle) designToggle.setAttribute("aria-pressed", String(designPanelVisible));
+    if (toolbarDesignButton) toolbarDesignButton.setAttribute("aria-pressed", String(designPanelVisible && Boolean(active || (showcaseMode && showcaseUiActive))));
     if (zoomLabel) zoomLabel.textContent = Math.round(canvasZoom * 100) + "%";
   };
   const setActiveTool = (tool) => {
@@ -1255,6 +1379,7 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
     if (commentMode) exitCommentMode();
     activeTool = tool;
     selectMode = tool === "select" || tool === "text";
+    if (tool !== "select") clearUiPeek();
     if (!selectMode) { hideHover(); if (active) clearSelection("Tool changed; temporary preview discarded"); }
     syncEditToolbar();
     syncToolUi();
@@ -1263,7 +1388,7 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
     else if (tool === "select") explain("Select tool: click elements to edit");
   };
   const toggleLayersPanel = () => { layersPanelVisible = !layersPanelVisible; syncToolUi(); if (layersPanelVisible) scheduleLayersTree(); };
-  const toggleDesignPanel = () => { designPanelVisible = !designPanelVisible; syncEditToolbar(); syncToolUi(); scheduleGeometry(); };
+  const hideDesignPanel = () => { if (!designPanelVisible) return; designPanelVisible = false; syncEditToolbar(); syncToolUi(); scheduleGeometry(); };
   const expandAllLayers = () => { layersCollapsed.clear(); renderLayersTree(); };
   const collapseAllLayers = () => {
     const walk = (parent) => { for (const child of layerChildren(parent)) { if (layerChildren(child).length) layersCollapsed.add(child); walk(child); } };
@@ -1356,6 +1481,7 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
   };
   const toggleLayerLocked = (element) => setLayerLocked(element, !element.hasAttribute("data-reframe-locked"));
   const clearLayerDrag = () => {
+    if (layerDrag?.handle?.hasPointerCapture?.(layerDrag.pointerId)) layerDrag.handle.releasePointerCapture(layerDrag.pointerId);
     if (layerDrag?.row) layerDrag.row.classList.remove("is-dragging");
     layerDrag = undefined;
     if (layerDropIndicator) layerDropIndicator.hidden = true;
@@ -1363,6 +1489,7 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
     document.removeEventListener("pointermove", onLayerDragMove, true);
     document.removeEventListener("pointerup", onLayerDragEnd, true);
     document.removeEventListener("pointercancel", onLayerDragEnd, true);
+    if (layersTreePending) { layersTreePending = false; renderLayersTree(); }
   };
   const reorderLayerSibling = (dragged, target, position) => {
     if (!dragged?.isConnected || !target?.isConnected || dragged === target) return false;
@@ -1392,6 +1519,7 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
   const onLayerDragMove = (event) => {
     if (!layerDrag || layerDrag.pointerId !== event.pointerId) return;
     event.preventDefault();
+    layerDrag.moved = true;
     const row = layerRowFromEvent(event);
     if (!row) { if (layerDropIndicator) layerDropIndicator.hidden = true; layerDrag.target = undefined; return; }
     const targetElement = layerRowElements.get(row);
@@ -1411,18 +1539,20 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
     const dragged = layerDrag.element;
     const target = layerDrag.target;
     const position = layerDrag.position;
+    const moved = layerDrag.moved;
     clearLayerDrag();
+    if (moved) suppressLayerRowClick = true;
     if (dragged?.isConnected && target?.isConnected && reorderLayerSibling(dragged, target, position)) {
       renderLayersTree();
       scheduleGeometry();
       explain("Layer reordered — preview until saved to source");
     }
   };
-  const onLayerDragStart = (event, element, row) => {
-    if (event.button !== 0 || !element?.isConnected || isLayerLocked(element)) return;
+  const onLayerDragStart = (event, element, row, handle) => {
+    if (event.button !== 0 || !element?.isConnected) return;
     event.preventDefault();
     event.stopPropagation();
-    layerDrag = { element, parent: element.parentElement, row, pointerId: event.pointerId, target: undefined, position: "before" };
+    layerDrag = { element, parent: element.parentElement, row, handle, pointerId: event.pointerId, target: undefined, position: "before", moved: false };
     row.classList.add("is-dragging");
     layersTree?.classList.add("is-dragging");
     if (!layerDropIndicator && layersTree) {
@@ -1431,7 +1561,7 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
       layerDropIndicator.hidden = true;
       layersTree.append(layerDropIndicator);
     }
-    event.currentTarget.setPointerCapture?.(event.pointerId);
+    handle.setPointerCapture?.(event.pointerId);
     document.addEventListener("pointermove", onLayerDragMove, true);
     document.addEventListener("pointerup", onLayerDragEnd, true);
     document.addEventListener("pointercancel", onLayerDragEnd, true);
@@ -1451,7 +1581,7 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
     const locked = element.hasAttribute("data-reframe-locked");
     const row = document.createElement("div");
     row.className = "layers-row" + (active?.element === element ? " selected" : "") + (hidden ? " is-hidden" : "") + (locked ? " is-locked" : "");
-    row.style.setProperty("--depth", String(depth));
+    row.style.setProperty("--layer-depth", String(depth));
     row.setAttribute("role", "treeitem");
     row.dataset.reframeLayerRow = "";
     if (hidden) row.dataset.reframeLayerHidden = "true";
@@ -1463,7 +1593,7 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
     dragHandle.setAttribute("aria-label", "Drag to reorder layer");
     dragHandle.title = "Drag to reorder";
     dragHandle.innerHTML = ICONS.grip;
-    dragHandle.addEventListener("pointerdown", (event) => onLayerDragStart(event, element, row));
+    dragHandle.addEventListener("pointerdown", (event) => onLayerDragStart(event, element, row, dragHandle));
     dragHandle.addEventListener("click", (event) => event.stopPropagation());
     row.append(dragHandle);
     const kids = layerChildren(element);
@@ -1527,7 +1657,10 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
     eyeBtn.addEventListener("click", (event) => { event.stopPropagation(); toggleLayerHidden(element); });
     actions.append(lockBtn, eyeBtn);
     row.append(actions);
-    row.addEventListener("click", () => selectLayerElement(element));
+    row.addEventListener("click", () => {
+      if (suppressLayerRowClick) { suppressLayerRowClick = false; return; }
+      selectLayerElement(element);
+    });
     return row;
   };
   const scheduleLayersTree = () => {
@@ -1539,7 +1672,8 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
   };
   const renderLayersTree = () => {
     if (!layersTree) return;
-    if (layerDrag) clearLayerDrag();
+    if (layerDrag) { layersTreePending = true; return; }
+    layersTreePending = false;
     layersTree.replaceChildren();
     const rootEl = layersTreeRoot();
     if (!rootEl) return;
@@ -1559,7 +1693,6 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
         if (hasKids && expanded) {
           const nested = document.createElement("div");
           nested.className = "layers-children";
-          nested.style.setProperty("--depth", String(depth));
           nested.setAttribute("role", "group");
           appendNodes(child, nested, depth + 1);
           if (nested.childNodes.length) wrapper.append(nested);
@@ -1829,6 +1962,25 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
   const loadAnnoints = async () => { const routes = annointRouteCandidates(); debugLog("browser-client:loadAnnoints", "loading annoints", { routes }, "H1"); try { let current; let matchedRoute; for (const currentRoute of routes) { const value = await annointFetch("?route=" + encodeURIComponent(currentRoute)); current = (value.annoints || [])[0]; if (current) { matchedRoute = currentRoute; break; } } debugLog("browser-client:loadAnnoints", "annoints loaded", { routes, matchedRoute, id: current?.id, strokes: current?.strokes?.length ?? 0, texts: current?.texts?.length ?? 0 }, "H1"); if (!current) { annointId = undefined; annointDraft = { strokes: [], texts: [] }; renderAnnoints(); return; } annointId = current.id; annointDraft = migrateAnnointDraft({ strokes: current.strokes || [], texts: current.texts || [] }); renderAnnoints(); } catch (error) { debugLog("browser-client:loadAnnoints", "annoints load failed", { routes, code: error?.message || "ANNOINT_REQUEST_FAILED" }, "H1"); } };
   const renderAnnoints = () => { if (!annointSvg) return; syncAnnointSvgViewport(); annointSvg.replaceChildren(); syncAnnointLayer(); if (!annotationsVisible) return; for (const stroke of annointDraft.strokes) { if (stroke.tool === "circle" && stroke.cx !== undefined) { const [cx, cy] = pageToViewport(stroke.cx, stroke.cy); const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle"); circle.setAttribute("cx", String(cx)); circle.setAttribute("cy", String(cy)); circle.setAttribute("r", String((stroke.r || 24) * canvasZoom)); circle.setAttribute("stroke", stroke.color || "#f59e0b"); circle.setAttribute("stroke-width", String((stroke.width || 2) * canvasZoom)); circle.setAttribute("fill", "none"); annointSvg.append(circle); } else if (stroke.points?.length) { const path = document.createElementNS("http://www.w3.org/2000/svg", "path"); path.setAttribute("d", "M" + stroke.points.map(([x, y]) => { const [vx, vy] = pageToViewport(x, y); return vx + " " + vy; }).join(" L")); path.setAttribute("stroke", stroke.color || "#f59e0b"); path.setAttribute("stroke-width", String((stroke.width || 2) * canvasZoom)); path.setAttribute("fill", "none"); annointSvg.append(path); } } for (const node of annointDraft.texts) { const [x, y] = pageToViewport(node.x, node.y); const text = document.createElementNS("http://www.w3.org/2000/svg", "text"); text.setAttribute("x", String(x)); text.setAttribute("y", String(y)); text.setAttribute("fill", node.color || "#f5f5f7"); text.setAttribute("font-size", String((node.fontSize || 16) * canvasZoom)); text.textContent = node.text; annointSvg.append(text); } };
   const renderHeatmap = () => { if (!heatmapLayer) return; heatmapLayer.replaceChildren(); if (!heatmapVisible) { heatmapLayer.hidden = true; return; } heatmapLayer.hidden = false; const cols = 12; const rows = 8; const cellW = innerWidth / cols; const cellH = innerHeight / rows; const counts = Array.from({ length: cols * rows }, () => 0); const interactive = [...document.querySelectorAll("a,button,input,select,textarea,[role=button],[onclick]")].filter((element) => element instanceof HTMLElement && !host.contains(element)); for (const element of interactive) { const rect = element.getBoundingClientRect(); if (rect.width <= 0 || rect.height <= 0) continue; const weight = rect.width * rect.height < 2_500 ? 2 : 1; const col = Math.min(cols - 1, Math.max(0, Math.floor((rect.left + rect.width / 2) / cellW))); const row = Math.min(rows - 1, Math.max(0, Math.floor((rect.top + rect.height / 2) / cellH))); counts[row * cols + col] += weight; } const max = Math.max(1, ...counts); for (let row = 0; row < rows; row += 1) for (let col = 0; col < cols; col += 1) { const score = counts[row * cols + col] / max; if (!score) continue; const cell = document.createElement("div"); cell.className = "heatmap-cell"; cell.style.left = col * cellW + "px"; cell.style.top = row * cellH + "px"; cell.style.width = cellW + "px"; cell.style.height = cellH + "px"; cell.style.background = score > .66 ? "rgba(239,68,68,.35)" : score > .33 ? "rgba(245,158,11,.28)" : "rgba(34,197,94,.22)"; heatmapLayer.append(cell); } };
+  const isInPeekHotzone = (x, y) => x >= 0 && y >= 0 && x <= PEEK_HOTZONE && y <= PEEK_HOTZONE;
+  const peekChromeRects = () => {
+    const rects = [];
+    if (chrome) rects.push(chrome.getBoundingClientRect());
+    if (toolRail && !toolRail.hidden) rects.push(toolRail.getBoundingClientRect());
+    if (layersPanel && !layersPanel.hidden) rects.push(layersPanel.getBoundingClientRect());
+    return rects;
+  };
+  const isPointerInPeekChrome = (x, y) => peekChromeRects().some((rect) => x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom);
+  const syncUiPeek = () => { host.dataset.reframeUiPeek = uiPeeking ? "true" : "false"; if (uiPeeking) scheduleGeometry(); };
+  const clearUiPeek = () => { if (!uiPeeking) return; uiPeeking = false; syncUiPeek(); };
+  const updateUiPeek = (event) => {
+    if (activeTool !== "select" || commentMode) { clearUiPeek(); return; }
+    const { clientX: x, clientY: y } = event;
+    const inHotzone = isInPeekHotzone(x, y);
+    const inChrome = isPointerInPeekChrome(x, y);
+    if (uiPeeking) { if (!inHotzone || inChrome) clearUiPeek(); return; }
+    if (inHotzone && !inChrome) { uiPeeking = true; syncUiPeek(); }
+  };
   const syncMinimalUi = () => { if (!chrome) return; chrome.dataset.reframeMinimalUi = String(toolbarCollapsed); };
   const syncChromeVisibility = () => { if (!chrome) return; chrome.dataset.reframeChromeVisible = String(chromeVisible); };
   const clearChromeHideTimer = () => { if (chromeHideTimer) { clearTimeout(chromeHideTimer); chromeHideTimer = undefined; } };
@@ -1846,6 +1998,7 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
   const onGlobalPointerMove = (event) => {
     lastPointer = { x: event.clientX, y: event.clientY };
     onDocumentPointerMove(event);
+    updateUiPeek(event);
     if (shouldKeepChromeVisible()) return;
     if (!chromeMoveFrame) chromeMoveFrame = requestAnimationFrame(flushChromePointerMove);
   };
@@ -1859,7 +2012,7 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
   const toggleHeatmap = () => { heatmapVisible = !heatmapVisible; if (heatmapToggle) { heatmapToggle.setAttribute("aria-pressed", String(heatmapVisible)); heatmapToggle.setAttribute("aria-label", heatmapVisible ? "Hide UX heatmap" : "Show UX heatmap"); } renderHeatmap(); };
   const syncCommentModeUi = () => { if (!commentMode || !active) return; if (panel) panel.hidden = true; if (contextBar) contextBar.hidden = true; if (aiPanel && !(aiReview?.status === "review" || aiReview?.status === "generating")) aiPanel.hidden = true; };
   const exitCommentMode = () => { if (!commentMode) return; commentMode = false; commentPointer = undefined; annointPointer = undefined; selectedImageId = undefined; endCommentPointerTracking(); endImageDrag(); if (commentModeToggle) { commentModeToggle.setAttribute("aria-pressed", "false"); commentModeToggle.setAttribute("aria-label", "Comment mode"); } if (activeTool === "comment") activeTool = "select"; selectMode = activeTool === "select" || activeTool === "text"; syncAnnointLayer(); syncEditToolbar(); syncToolUi(); };
-  const enterCommentMode = () => { if (commentMode) return; commentMode = true; activeTool = "comment"; if (selectMode) { selectMode = false; hideHover(); } if (active) void flushAutosave().then(() => clearSelection("Comment mode — selection cleared", false)); if (commentModeToggle) { commentModeToggle.setAttribute("aria-pressed", "true"); commentModeToggle.setAttribute("aria-label", "Exit comment mode"); } commentHistory = [commentSnapshot()]; commentHistoryIndex = 0; syncCommentUndoButtons(); syncAnnointLayer(); syncEditToolbar(); syncToolUi(); void loadAnnoints(); explain("Comment mode: draw · paste image · Ctrl+Z undo"); };
+  const enterCommentMode = () => { if (commentMode) return; commentMode = true; clearUiPeek(); activeTool = "comment"; if (selectMode) { selectMode = false; hideHover(); } if (active) void flushAutosave().then(() => clearSelection("Comment mode — selection cleared", false)); if (commentModeToggle) { commentModeToggle.setAttribute("aria-pressed", "true"); commentModeToggle.setAttribute("aria-label", "Exit comment mode"); } commentHistory = [commentSnapshot()]; commentHistoryIndex = 0; syncCommentUndoButtons(); syncAnnointLayer(); syncEditToolbar(); syncToolUi(); void loadAnnoints(); explain("Comment mode: draw · paste image · Ctrl+Z undo"); };
   const toggleCommentMode = () => { if (commentMode) exitCommentMode(); else enterCommentMode(); };
   const pinCommentAt = (event) => { const result = candidateFrom(event); if (!result.element) { explain(result.reason || "Click a page element to add a comment"); return; } if (active?.element !== result.element) { if (active) void flushAutosave().then(() => { clearSelection("Previous preview saved", false); choose(result.element); syncCommentModeUi(); openAnnotations(true); }); else { choose(result.element); syncCommentModeUi(); openAnnotations(true); } return; } syncCommentModeUi(); openAnnotations(true); };
   const screenshotCache = new Map();
@@ -1922,12 +2075,35 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
       if (!historyState.checkpoints.length) requestHistory();
     }, 400);
   };
-  const FIGMA_PASTE_HINT = "Figma native copy won't paste as a design. For full look: Right-click frame → Copy as PNG, then Ctrl+V. For editable HTML: use a Figma HTML export plugin.";
-  const FIGMA_NO_STYLE_HINT = "This paste has no styling. In Figma use Right-click → Copy as PNG, then Ctrl+V for the full design look.";
+  const FIGMA_PASTE_HINT = "Figma native copy won't paste as a design. Use Right-click → Copy/Paste as → Copy as PNG (full look) or Copy as CSS (editable layers), then Ctrl+V.";
+  const FIGMA_NO_STYLE_HINT = "This paste has no styling. In Figma use Copy as PNG or Copy as CSS, then Ctrl+V.";
   const FIGMA_PASTE_OK = "Pasted from clipboard";
   const PASTE_STYLE_THRESHOLD = 10;
   const PASTE_IMAGE_MAX_VP = 0.9;
-  const pasteEditableTarget = (target) => target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || (target instanceof HTMLElement && target.isContentEditable);
+  const TOOL_SHORTCUT_FIELD_TAGS = new Set(["INPUT", "TEXTAREA", "SELECT"]);
+  const isToolShortcutField = (node) => {
+    if (!node || !(node instanceof Element)) return false;
+    if (node.closest?.("[data-reframe-no-tool-shortcuts]")) return true;
+    if (TOOL_SHORTCUT_FIELD_TAGS.has(node.tagName)) return true;
+    return node instanceof HTMLElement && node.isContentEditable;
+  };
+  const eventDeepTarget = (event) => {
+    const path = event.composedPath?.();
+    if (path?.length) return path[0];
+    return event.target;
+  };
+  const focusedShadowField = () => {
+    if (document.activeElement !== host) return null;
+    const focused = root.activeElement;
+    return isToolShortcutField(focused) ? focused : null;
+  };
+  const blocksToolShortcuts = (event) => {
+    const deep = eventDeepTarget(event);
+    if (isToolShortcutField(deep)) return true;
+    if (isToolShortcutField(event.target)) return true;
+    return Boolean(focusedShadowField());
+  };
+  const pasteEditableTarget = (target) => isToolShortcutField(target);
   const clipboardImageFrom = (clipboardData) => {
     if (!clipboardData) return null;
     for (const item of clipboardData.items || []) {
@@ -1939,11 +2115,25 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
   };
   const clipboardHasFigmaNative = (clipboardData) => Boolean(clipboardData?.types && [...clipboardData.types].some((type) => /figma/i.test(type)));
   const looksLikeHtml = (text) => /<(?:html|body|div|span|svg|table|section|article|p|h[1-6]|ul|ol|li|header|footer|nav|main|img)\b/i.test(text);
+  const clipboardFigmaCssText = (clipboardData) => {
+    if (!clipboardData) return null;
+    const types = new Set([...(clipboardData.types || [])]);
+    const candidates = [];
+    if (types.has("text/css")) candidates.push(clipboardData.getData("text/css"));
+    candidates.push(clipboardData.getData("text/plain"));
+    if (types.has("text/html")) candidates.push(clipboardData.getData("text/html"));
+    for (const raw of candidates) {
+      const text = raw?.trim();
+      if (text && isFigmaCssExport(text)) return text;
+    }
+    return null;
+  };
   const clipboardHasPasteable = (clipboardData) => {
     if (!clipboardData) return false;
     if (clipboardImageFrom(clipboardData)) return true;
+    if (clipboardFigmaCssText(clipboardData)) return true;
     const types = new Set([...(clipboardData.types || [])]);
-    if (types.has("text/html") || types.has("image/svg+xml")) return true;
+    if (types.has("text/html") || types.has("image/svg+xml") || types.has("text/css")) return true;
     const plain = clipboardData.getData("text/plain")?.trim();
     return Boolean(plain && (/^<svg[\s>]/i.test(plain) || looksLikeHtml(plain)));
   };
@@ -1970,7 +2160,7 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
     try {
       if (sessionStorage.getItem("reframe.figma-paste-hint")) return;
       sessionStorage.setItem("reframe.figma-paste-hint", "1");
-      explain("Tip: Copy as PNG for the full Figma look. Native Ctrl+C only copies unstyled text in browsers.");
+      explain("Tip: In Figma use Copy as PNG (full look) or Copy as CSS (editable layers). Native Ctrl+C only copies unstyled text.");
     } catch { /* ponytail: session preference is optional */ }
   };
 
@@ -1998,7 +2188,7 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
       explain("Could not save pasted image");
     }
   };
-  // ponytail: native Figma Ctrl+C does not expose DOM/HTML to the browser clipboard — Copy as PNG/SVG or export plugins are required.
+  // ponytail: native Figma Ctrl+C does not expose DOM/HTML to the browser clipboard — Copy as PNG/CSS/SVG or export plugins are required.
   const sanitizeCssText = (value) => String(value || "")
     .replace(/@import\b[^;]*/gi, "")
     .replace(/expression\s*\(/gi, "")
@@ -2084,6 +2274,7 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
       card.classList.add("reframe-pasted-design");
       card.style.cssText += "margin:0 auto;max-width:min(90vw," + dims.width + "px);box-shadow:0 8px 32px rgb(0 0 0/.18);border-radius:8px;outline:1px dashed rgb(139 92 246/.45);";
       await insertDomNode(card, "image", dataUrl);
+      explain("Pasted Figma PNG");
       return;
     }
     const position = pasteImagePlacement(natural.width, natural.height);
@@ -2094,6 +2285,14 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
     img.style.cssText = "display:block;width:100%;height:100%;object-fit:contain;pointer-events:none;border-radius:8px;";
     wrap.append(img);
     await insertDomNode(wrap, "image", dataUrl);
+    explain("Pasted Figma PNG");
+  };
+  const insertFigmaCssSnippet = async (text) => {
+    const parsed = parseFigmaCssExport(text);
+    if (!parsed.layerCount) throw new Error("FIGMA_CSS_EMPTY");
+    const snippet = "<style>" + sanitizeCssText(parsed.css) + "</style>" + parsed.html;
+    await insertDomNode(wrapPasteRoot(snippet), "html");
+    explain("Pasted Figma CSS (" + parsed.layerCount + " layers)");
   };
   const insertHtmlSnippet = async (html) => {
     const clean = sanitizeHtml(html);
@@ -2162,6 +2361,8 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
   };
   const pasteFromClipboard = async (clipboardData) => {
     if (!selectMode) setActiveTool("select");
+    const figmaCssText = clipboardFigmaCssText(clipboardData);
+    if (figmaCssText) { await insertFigmaCssSnippet(figmaCssText); return true; }
     if (clipboardHasFigmaNative(clipboardData) && !clipboardHasPasteable(clipboardData)) {
       explain(FIGMA_PASTE_HINT);
       return false;
@@ -2174,6 +2375,7 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
     if (file) { await insertPastedImageDom(file); return true; }
     const plain = clipboardData.getData("text/plain")?.trim();
     if (plain) {
+      if (isFigmaCssExport(plain)) { await insertFigmaCssSnippet(plain); return true; }
       if (/^<svg[\s>]/i.test(plain)) { await insertSvgSnippet(plain); return true; }
       if (looksLikeHtml(plain)) {
         if (await pasteHtmlOrPreferImage(plain, file)) return true;
@@ -2183,6 +2385,13 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
     return false;
   };
   const pasteFromClipboardItems = async (items) => {
+    for (const item of items) {
+      for (const type of ["text/css", "text/plain"]) {
+        if (!item.types.includes(type)) continue;
+        const text = (await (await item.getType(type)).text()).trim();
+        if (text && isFigmaCssExport(text)) { await insertFigmaCssSnippet(text); return true; }
+      }
+    }
     let html = "";
     let imageBlob = null;
     let imageType = "image/png";
@@ -2214,6 +2423,7 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
     for (const item of items) {
       if (!item.types.includes("text/plain")) continue;
       const plain = (await (await item.getType("text/plain")).text()).trim();
+      if (isFigmaCssExport(plain)) { await insertFigmaCssSnippet(plain); return true; }
       if (/^<svg[\s>]/i.test(plain)) { await insertSvgSnippet(plain); return true; }
       if (looksLikeHtml(plain) && await pasteHtmlOrPreferImage(plain, null)) return true;
     }
@@ -2232,7 +2442,7 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
   };
   const onPasteContent = (event) => {
     if (referenceDialog && !referenceDialog.hidden) return;
-    if (pasteEditableTarget(event.target)) return;
+    if (blocksToolShortcuts(event)) return;
     const clipboardData = event.clipboardData;
     if (!clipboardData) return;
     if (commentMode) {
@@ -2401,6 +2611,7 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
     if (aiStatus) aiStatus.textContent = "Choose a Codex task, then Generate";
     for (const button of [aiAccept, aiRefine, aiCompare, aiReject, aiDismiss]) { if (button) { button.hidden = true; button.disabled = true; } }
     if (aiStop) aiStop.hidden = true;
+    if (aiGenerate) aiGenerate.hidden = false;
     scheduleGeometry();
   };
   const applyAiState = (message, options = {}) => {
@@ -2426,6 +2637,7 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
     for (const button of [aiAccept, aiRefine, aiCompare, aiReject]) { if (button) { button.hidden = !reviewing; button.disabled = !reviewing; } }
     if (aiDismiss) { aiDismiss.hidden = !recoverable; aiDismiss.disabled = !recoverable; }
     if (aiStop) aiStop.hidden = message.status !== "generating";
+    if (aiGenerate) aiGenerate.hidden = message.status === "generating" || reviewing;
     if (["accepted", "rejected", "stopped"].includes(message.status)) {
       if (message.status === "accepted") requestHistory();
       if ((message.status === "rejected" || message.status === "stopped") && message.code !== "REVIEW_DISMISSED") setTimeout(() => location.reload(), 50);
@@ -2440,20 +2652,43 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
     if (selection.mappingConfidence === "pending" && selection.mappingSource && (selection.stableMappingConfidence === "exact" || (selection.stableMappingConfidence === "probable" && selection.sharedImpactAccepted))) return true;
     return false;
   };
+  const usesOverridesPath = (selection) => {
+    if (!selection) return false;
+    if (selection.mappingConfidence === "not-mapped" || selection.mappingConfidence === "ambiguous" || selection.mappingConfidence === "pending") return true;
+    if (selection.mappingConfidence === "probable" && selection.mappingRequiresImpact && !selection.sharedImpactAccepted) return true;
+    return false;
+  };
+  const overrideSaveMessage = (autosave) => autosave ? "Autosaved to .reframe/overrides.css (unmapped element)" : "Saved to .reframe/overrides.css (unmapped element)";
+  const promotionSaveMessage = (autosave) => autosave ? "Autosaved to project source (promoted class)" : "Saved to project source (promoted class)";
+  const applySourcePromotion = () => {
+    if (!active?.element || !active.fingerprint) return;
+    if (!active.fingerprint.id) {
+      const className = "reframe-mapped-" + fingerprintKey(active.fingerprint);
+      active.element.classList.add(className);
+      if (!active.fingerprint.classes.includes(className)) active.fingerprint.classes = [...active.fingerprint.classes, className];
+    }
+    active.mappingConfidence = "exact";
+  };
+  const mappingStatusMessage = (confidence, evidence, requiresImpact) => {
+    if (confidence === "exact") return evidence;
+    if (confidence === "probable" && requiresImpact) return evidence;
+    if (confidence === "not-mapped" || confidence === "ambiguous" || confidence === "pending") return "No source mapping — edits save to .reframe/overrides.css";
+    return evidence;
+  };
   const applyDisabledReason = () => {
     if (!active) return "";
     if (active.applying) return "Saving…";
     if (state !== "connected") return "Not connected";
     if (active.overlapBlocked) return "Source changed outside Reframe";
-    if (active.mappingConfidence === "pending") return "Refreshing source mapping…";
     const widthChanged = active.previewWidth !== Math.round(active.original.computedWidth);
     const heightChanged = active.previewHeight !== Math.round(active.original.computedHeight);
     const textChanged = active.previewText !== active.original.text;
     const styleChanged = stylesChanged(active);
     const moved = translateChanged(active);
     if (!widthChanged && !heightChanged && !textChanged && !styleChanged && !moved) return "Resize or edit text first";
+    if (usesOverridesPath(active)) return "";
+    if (active.mappingConfidence === "pending") return "Refreshing source mapping…";
     if (active.mappingConfidence === "probable" && active.mappingRequiresImpact && !active.sharedImpactAccepted) return "Allow shared edit first";
-    if (active.mappingConfidence === "not-mapped" || active.mappingConfidence === "ambiguous") return "";
     if (!mappingWritable(active)) return "Mapping unavailable";
     return "";
   };
@@ -2544,21 +2779,49 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
     else if (referenceKind?.value === "markdown") { referenceFile.accept = ".md,.markdown,.txt"; if (referenceDropzoneText) referenceDropzoneText.textContent = "Drop a Markdown file here or choose one"; }
     else if (referenceKind?.value === "figma-export") { referenceFile.accept = ".json,application/json"; if (referenceDropzoneText) referenceDropzoneText.textContent = "Drop a Figma JSON export or choose one"; }
   };
+  const closeAiPanel = () => { if (!aiPanel || aiPanel.hidden) return; closeCodexChatMenu(); closeReferencePickers(); aiPanel.hidden = true; reference?.setAttribute("aria-expanded", "false"); scheduleGeometry(); };
+  const revokeAiAttachmentPreview = () => { if (aiAttachmentPreviewUrl) { URL.revokeObjectURL(aiAttachmentPreviewUrl); aiAttachmentPreviewUrl = undefined; } };
+  const syncAiAttachmentPreview = (file) => {
+    if (!aiAttachments) return;
+    if (!file) { aiAttachments.hidden = true; aiAttachedImage = undefined; if (aiAttachmentImg) aiAttachmentImg.removeAttribute("src"); if (aiAttachmentName) aiAttachmentName.textContent = ""; revokeAiAttachmentPreview(); return; }
+    aiAttachments.hidden = false;
+    if (aiAttachmentName) aiAttachmentName.textContent = file.name || "Pasted image";
+    if (aiAttachmentImg) { revokeAiAttachmentPreview(); aiAttachmentPreviewUrl = URL.createObjectURL(file); aiAttachmentImg.src = aiAttachmentPreviewUrl; }
+  };
+  const setAiAttachedImage = async (file) => {
+    if (!file) return;
+    try { aiAttachedImage = await normalizeReferenceImageFile(file); syncAiAttachmentPreview(aiAttachedImage); if (aiStatus && !aiReview) aiStatus.textContent = "Image attached — click Generate when ready"; }
+    catch (error) { if (aiStatus) aiStatus.textContent = "Rejected image: " + (error?.message || error); }
+  };
+  const clearAiAttachedImage = () => syncAiAttachmentPreview(undefined);
+  const uploadAiAttachment = async (file) => {
+    const id = correlation("attachment");
+    const response = await fetch(reframeBasePath + "/ai/attachment/" + id, { method: "PUT", headers: { Authorization: "Bearer " + token, "Content-Type": "image/png" }, body: file, cache: "no-store", credentials: "same-origin" });
+    if (!response.ok) throw new Error("IMAGE_ATTACHMENT_UPLOAD_FAILED");
+    return id;
+  };
+  const onAiPanelPaste = (event) => {
+    if (!aiPanel || aiPanel.hidden) return;
+    const file = [...(event.clipboardData?.items || [])].map((item) => item.getAsFile()).find((item) => item && item.type.startsWith("image/"));
+    if (!file) return;
+    event.preventDefault(); event.stopPropagation();
+    void setAiAttachedImage(file);
+  };
   const onReferencePaste = (event) => {
-    if (!referenceDialog || referenceDialog.hidden || referenceKind?.value === "design-dna" || !isReferenceImageKind()) return;
+    if (!aiPanel || aiPanel.hidden || !referenceDialog?.open || referenceKind?.value === "design-dna" || !isReferenceImageKind()) return;
     const file = [...(event.clipboardData?.items || [])].map((item) => item.getAsFile()).find((item) => item && item.type.startsWith("image/"));
     if (!file) return;
     event.preventDefault(); event.stopPropagation();
     void setReferenceFile(file);
   };
   const onReferenceDrop = (event) => {
-    if (!referenceDialog || referenceDialog.hidden || referenceKind?.value === "design-dna") return;
+    if (!aiPanel || aiPanel.hidden || !referenceDialog?.open || referenceKind?.value === "design-dna") return;
     event.preventDefault(); referenceDropzone?.classList.remove("is-dragover");
     const file = [...(event.dataTransfer?.files || [])][0];
     if (!file) return;
     void setReferenceFile(file);
   };
-  const onReferenceDragOver = (event) => { if (!referenceDialog || referenceDialog.hidden || referenceKind?.value === "design-dna") return; event.preventDefault(); referenceDropzone?.classList.add("is-dragover"); };
+  const onReferenceDragOver = (event) => { if (!aiPanel || aiPanel.hidden || !referenceDialog?.open || referenceKind?.value === "design-dna") return; event.preventDefault(); referenceDropzone?.classList.add("is-dragover"); };
   const onReferenceDragLeave = () => referenceDropzone?.classList.remove("is-dragover");
   const referenceEndpoint = reframeBasePath + "/reference";
   const referenceFetch = async (suffix, options = {}) => {
@@ -2566,8 +2829,8 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
     const value = await response.json().catch(() => ({ code: "REFERENCE_RESPONSE_INVALID" }));
     if (!response.ok) throw new Error(value.code || "REFERENCE_REQUEST_FAILED"); return value;
   };
-  const closeReference = () => { if (!referenceDialog || referenceDialog.hidden) return; closeReferencePickers(); referenceDialog.hidden = true; reference?.setAttribute("aria-expanded", "false"); };
-  const openReference = () => { if (!referenceDialog) return; referenceDialog.hidden = false; reference?.setAttribute("aria-expanded", "true"); syncReferenceSourceUI(); syncReferencePlacementUI(); if (referenceStatus) referenceStatus.textContent = active?.mappingConfidence === "exact" && active.mappingSource ? "Choose a reference and explicit borrowing characteristics." : active?.element?.isConnected ? "Waiting for exact source mapping on the selected target." : "Select an element on the page first."; (active?.mappingSource ? referenceDropzone || referenceFile : referenceClose)?.focus?.(); };
+  const closeReference = () => { if (!referenceDialog) return; referenceDialog.open = false; closeReferencePickers(); reference?.setAttribute("aria-expanded", "false"); };
+  const openReference = () => { openAiPanel(); if (!referenceDialog) return; referenceDialog.open = true; reference?.setAttribute("aria-expanded", "true"); syncReferenceSourceUI(); syncReferencePlacementUI(); if (referenceStatus) referenceStatus.textContent = active?.mappingConfidence === "exact" && active.mappingSource ? "Choose a reference and explicit borrowing characteristics." : active?.element?.isConnected ? "Waiting for exact source mapping on the selected target." : "Select an element on the page first."; (active?.mappingSource ? referenceDropzone || referenceFile : aiClose)?.focus?.(); };
   const resetReferencePlan = () => { referenceDraft = undefined; frozenReferencePlanId = undefined; if (referenceFreeze) referenceFreeze.disabled = true; if (referencePlan) { referencePlan.hidden = true; referencePlan.textContent = ""; } };
   const buildReferencePlan = async (event) => {
     event.preventDefault(); resetReferencePlan();
@@ -2664,12 +2927,38 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
   const startTimeHold = (pointerId) => { if (timeHold) return Promise.resolve(); timeHold = { started: performance.now(), pointerId }; if (pointerId !== undefined) try { time?.setPointerCapture?.(pointerId); } catch { /* synthetic/ended touch pointer */ } return showComparison(); };
   const endTimeHold = (pointerId) => { if (!timeHold || (pointerId !== undefined && timeHold.pointerId !== undefined && timeHold.pointerId !== pointerId)) return; suppressHistoryClick = performance.now() - timeHold.started >= 250; if (pointerId !== undefined) try { if (time?.hasPointerCapture?.(pointerId)) time.releasePointerCapture(pointerId); } catch { /* capture already lost */ } closeComparison(); };
   const closeHistory = () => { if (!historyDialog || historyDialog.hidden) return; historyDialog.hidden = true; historyButton?.setAttribute("aria-expanded", "false"); historyFocus?.focus?.(); historyFocus = undefined; };
-  const HISTORY_LANE_COLORS = ["#3b82f6", "#f97316", "#ec4899", "#14b8a6"];
-  const HISTORY_LANE_X = [8, 16, 24, 30];
-  const HISTORY_ROW_H = 48;
+  const closeElementHistory = () => { if (!elementHistoryDialog || elementHistoryDialog.hidden) return; elementHistoryDialog.hidden = true; elementHistoryFocus?.focus?.(); elementHistoryFocus = undefined; };
+  const closeExclusivePanels = (except) => {
+    if (except !== "history") closeHistory();
+    if (except !== "element-history") closeElementHistory();
+    if (except !== "ai") closeAiPanel();
+    if (except !== "design") hideDesignPanel();
+  };
+  const toggleDesignPanel = () => {
+    if (!designPanelVisible) closeExclusivePanels("design");
+    designPanelVisible = !designPanelVisible;
+    syncEditToolbar();
+    syncToolUi();
+    scheduleGeometry();
+  };
+  const HISTORY_LANE_COLORS = ["#4e9eff", "#e8912d", "#b180d7", "#2db8a6", "#ce9178"];
+  const HISTORY_GRAPH_W = 32;
+  const HISTORY_ROW_H = 46;
+  const historyLaneX = (lane, maxLane) => {
+    const pad = 10;
+    if (maxLane <= 0) return HISTORY_GRAPH_W / 2;
+    return pad + ((HISTORY_GRAPH_W - pad * 2) / maxLane) * lane;
+  };
   const historyBranchIcon = '<svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M4 2.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm0 4.5a2.5 2.5 0 0 0-1.76 1A2.5 2.5 0 0 0 4 13.5V7zM12 2.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM8 6h2a2 2 0 1 1 0 4H8"/></svg>';
   const historyHeadIcon = '<svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 1.5a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm-5 11.5a5 5 0 0 1 10 0v.5H3z"/></svg>';
   const formatHistoryTime = (value) => { try { return new Date(value).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }); } catch { return value || ""; } };
+  const historyMetaLine = (checkpoint, isInvalid) => {
+    if (isInvalid) return "Restore blocked";
+    const parts = [checkpoint.route || "route unavailable", checkpoint.viewport ? checkpoint.viewport.width + "×" + checkpoint.viewport.height : "viewport unavailable", checkpoint.verification || "verification unavailable"];
+    if (checkpoint.files.length) parts.push(checkpoint.files.join(", "));
+    parts.push(formatHistoryTime(checkpoint.createdAt));
+    return parts.join(" · ");
+  };
   const assignHistoryLanes = (checkpoints, currentId) => {
     const byId = new Map(checkpoints.map((checkpoint) => [checkpoint.id, checkpoint]));
     const lanes = new Map();
@@ -2678,14 +2967,39 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
     for (const checkpoint of checkpoints) {
       if (lanes.has(checkpoint.id)) continue;
       const parentLane = checkpoint.parentId ? (lanes.get(checkpoint.parentId) ?? 0) : 0;
-      lanes.set(checkpoint.id, Math.min(parentLane + 1, HISTORY_LANE_COLORS.length - 1));
+      lanes.set(checkpoint.id, parentLane + 1);
     }
     return lanes;
   };
   const historyGraphPath = (x1, y1, x2, y2) => {
-    if (x1 === x2) return "M " + x1 + " " + y1 + " L " + x2 + " " + y2;
+    if (Math.abs(x1 - x2) < 0.5) return "M " + x1 + " " + y1 + " L " + x2 + " " + y2;
     const mid = (y1 + y2) / 2;
     return "M " + x1 + " " + y1 + " C " + x1 + " " + mid + ", " + x2 + " " + mid + ", " + x2 + " " + y2;
+  };
+  const historyAncestors = (currentId, checkpoints) => {
+    const byId = new Map(checkpoints.map((checkpoint) => [checkpoint.id, checkpoint]));
+    const ancestors = new Set();
+    for (let walk = currentId; walk && byId.has(walk); walk = byId.get(walk).parentId) ancestors.add(walk);
+    return ancestors;
+  };
+  const normalizeHistoryPath = (value) => String(value || "").replace(/\\/g, "/");
+  const elementHistorySourcePath = () => normalizeHistoryPath(active?.mappingSource?.path);
+  const checkpointTouchesSource = (checkpoint, sourcePath) => sourcePath && checkpoint.files.some((file) => normalizeHistoryPath(file) === sourcePath);
+  const restoreCheckpoint = (checkpointId, label = "checkpoint") => {
+    if (state !== "connected") return false;
+    if (!checkpointId) return explain("No checkpoint available to restore"), false;
+    const checkpoint = historyState.checkpoints.find((item) => item.id === checkpointId);
+    if (!checkpoint?.valid) return explain("Restore blocked for unavailable checkpoint"), false;
+    if (checkpointId === historyState.currentId && !historyState.canRestore) return explain("No checkpoint available to restore"), false;
+    if (!historyAncestors(historyState.currentId, historyState.checkpoints).has(checkpointId)) return explain("Restore blocked: checkpoint is not on the current branch"), false;
+    const prompt = checkpointId === historyState.currentId ? "Restore the previous Reframe checkpoint? Unrelated work will be preserved." : "Restore this Reframe checkpoint? Later edits on this branch will be rolled back. Unrelated work will be preserved.";
+    if (!confirm(prompt)) return false;
+    if (active && !clearSelection("Selection cleared before restore")) return false;
+    if (restore) restore.disabled = true;
+    explain("Restoring " + label + "…");
+    const payload = base("history:restore", correlation("restore"));
+    if (checkpointId) payload.checkpointId = checkpointId;
+    return send(payload);
   };
   const renderHistoryList = () => {
     if (!historyList) return;
@@ -2702,53 +3016,69 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
       return;
     }
     const lanes = assignHistoryLanes(checkpoints, historyState.currentId);
+    const reachable = historyAncestors(historyState.currentId, checkpoints);
     const indexById = new Map(checkpoints.map((checkpoint, index) => [checkpoint.id, index]));
     const layout = checkpoints.map((checkpoint, index) => {
       const lane = lanes.get(checkpoint.id) ?? 0;
-      return { checkpoint, lane, index, x: HISTORY_LANE_X[lane], y: index * HISTORY_ROW_H + 22 };
+      return { checkpoint, lane, index, y: index * HISTORY_ROW_H + HISTORY_ROW_H / 2 };
     });
+    const maxLane = Math.max(0, ...layout.map((node) => node.lane));
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     svg.classList.add("history-graph-svg");
-    svg.setAttribute("width", "32");
+    svg.setAttribute("width", String(HISTORY_GRAPH_W));
     svg.setAttribute("height", String(Math.max(HISTORY_ROW_H, layout.length * HISTORY_ROW_H)));
     svg.setAttribute("aria-hidden", "true");
-    for (let index = 0; index < layout.length - 1; index += 1) {
-      const current = layout[index];
-      const next = layout[index + 1];
-      if (current.lane !== next.lane) continue;
-      const trunk = document.createElementNS("http://www.w3.org/2000/svg", "path");
-      trunk.classList.add("history-graph-line", "history-graph-trunk");
-      trunk.setAttribute("d", "M " + current.x + " " + current.y + " L " + next.x + " " + next.y);
-      trunk.setAttribute("stroke", HISTORY_LANE_COLORS[current.lane] || HISTORY_LANE_COLORS[0]);
-      svg.append(trunk);
-    }
     for (const node of layout) {
       const parentIndex = node.checkpoint.parentId ? indexById.get(node.checkpoint.parentId) : undefined;
       if (parentIndex === undefined) continue;
       const parent = layout[parentIndex];
+      const x1 = historyLaneX(node.lane, maxLane);
+      const x2 = historyLaneX(parent.lane, maxLane);
+      const laneColor = HISTORY_LANE_COLORS[node.lane % HISTORY_LANE_COLORS.length];
       const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
       path.classList.add("history-graph-line");
-      path.setAttribute("d", historyGraphPath(node.x, node.y, parent.x, parent.y));
-      path.setAttribute("stroke", HISTORY_LANE_COLORS[node.lane] || HISTORY_LANE_COLORS[0]);
+      path.setAttribute("d", historyGraphPath(x1, node.y, x2, parent.y));
+      path.setAttribute("stroke", laneColor);
       svg.append(path);
+    }
+    for (const node of layout) {
+      const checkpoint = node.checkpoint;
+      const isCurrent = checkpoint.id === historyState.currentId;
+      const cx = historyLaneX(node.lane, maxLane);
+      const laneColor = HISTORY_LANE_COLORS[node.lane % HISTORY_LANE_COLORS.length];
+      const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
+      if (isCurrent) {
+        const ring = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        ring.classList.add("history-graph-dot-ring");
+        ring.setAttribute("cx", String(cx));
+        ring.setAttribute("cy", String(node.y));
+        ring.setAttribute("r", "6");
+        ring.setAttribute("stroke", laneColor);
+        group.append(ring);
+      }
+      const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      dot.classList.add("history-graph-dot", ...(isCurrent ? ["is-head"] : []));
+      dot.setAttribute("cx", String(cx));
+      dot.setAttribute("cy", String(node.y));
+      dot.setAttribute("r", isCurrent ? "4" : "3.5");
+      dot.setAttribute("fill", laneColor);
+      group.append(dot);
+      svg.append(group);
     }
     historyList.append(svg);
     for (const node of layout) {
       const checkpoint = node.checkpoint;
       const isCurrent = checkpoint.id === historyState.currentId;
       const isInvalid = !checkpoint.valid;
+      const laneColor = HISTORY_LANE_COLORS[node.lane % HISTORY_LANE_COLORS.length];
       const item = document.createElement("article");
-      item.className = "history-row history-item" + (node.index % 2 ? " is-alt" : "") + (isCurrent ? " is-current" : "") + (isInvalid ? " is-invalid" : "");
+      item.className = "history-row history-item" + (isCurrent ? " is-current" : "") + (isInvalid ? " is-invalid" : "");
       item.setAttribute("aria-disabled", String(isInvalid));
       if (selectedHistoryId === checkpoint.id) item.setAttribute("aria-selected", "true");
-      item.style.setProperty("--lane-color", HISTORY_LANE_COLORS[node.lane] || HISTORY_LANE_COLORS[0]);
+      item.style.setProperty("--lane-color", laneColor);
       const graphCol = document.createElement("div");
       graphCol.className = "history-graph-col";
-      const dot = document.createElement("span");
-      dot.className = "history-graph-node" + (isCurrent ? " is-head" : "");
-      dot.style.setProperty("--lane-color", HISTORY_LANE_COLORS[node.lane] || HISTORY_LANE_COLORS[0]);
-      dot.style.setProperty("--node-x", node.x + "px");
-      graphCol.append(dot);
+      graphCol.setAttribute("aria-hidden", "true");
       const body = document.createElement("div");
       body.className = "history-body";
       const message = document.createElement("div");
@@ -2757,6 +3087,10 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
       hash.className = "history-hash";
       hash.textContent = checkpoint.id.slice(0, 8);
       message.append(hash);
+      const hashSep = document.createElement("span");
+      hashSep.className = "history-sep";
+      hashSep.textContent = "·";
+      message.append(hashSep);
       const summary = document.createElement("span");
       summary.className = "history-summary";
       summary.textContent = isInvalid ? "Unavailable/corrupt · " + (checkpoint.error || "validation failed") : (checkpoint.promptSummary || "No prompt recorded");
@@ -2767,57 +3101,47 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
         badge.textContent = "Current";
         message.append(badge);
       }
-      body.append(message);
-      const badges = document.createElement("div");
-      badges.className = "history-badges";
       const headPill = document.createElement("span");
       headPill.className = "history-branch-pill" + (isCurrent ? " head" : "");
       headPill.innerHTML = historyHeadIcon + (isCurrent ? "HEAD" : "checkpoint");
-      badges.append(headPill);
+      message.append(headPill);
       if (checkpoint.kind === "safety") {
         const safetyPill = document.createElement("span");
         safetyPill.className = "history-branch-pill safety";
         safetyPill.innerHTML = historyBranchIcon + "safety";
-        badges.append(safetyPill);
+        message.append(safetyPill);
       }
       if (checkpoint.route) {
         const routePill = document.createElement("span");
         routePill.className = "history-branch-pill";
-        const laneColor = HISTORY_LANE_COLORS[node.lane] || HISTORY_LANE_COLORS[0];
         routePill.style.setProperty("--pill-bg", "color-mix(in srgb, " + laneColor + " 18%, transparent)");
         routePill.style.setProperty("--pill-fg", laneColor);
         routePill.innerHTML = historyBranchIcon + checkpoint.route.slice(0, 24);
-        badges.append(routePill);
+        message.append(routePill);
       }
       if (isInvalid) {
         const invalidPill = document.createElement("span");
         invalidPill.className = "history-branch-pill invalid";
         invalidPill.textContent = "corrupt";
-        badges.append(invalidPill);
+        message.append(invalidPill);
       }
-      body.append(badges);
+      body.append(message);
       const detail = document.createElement("div");
       detail.className = "history-detail";
-      detail.textContent = isInvalid ? "Restore blocked" : (checkpoint.route || "route unavailable") + " · " + (checkpoint.viewport ? checkpoint.viewport.width + "×" + checkpoint.viewport.height : "viewport unavailable") + " · " + (checkpoint.verification || "verification unavailable") + " · " + checkpoint.files.length + " file" + (checkpoint.files.length === 1 ? "" : "s") + " · " + formatHistoryTime(checkpoint.createdAt);
+      detail.textContent = historyMetaLine(checkpoint, isInvalid);
       body.append(detail);
-      if (checkpoint.files.length) {
-        const files = document.createElement("div");
-        files.className = "history-detail history-detail-muted";
-        files.textContent = checkpoint.files.join(", ");
-        body.append(files);
-      }
-      if (isCurrent && checkpoint.valid && historyState.canRestore) {
+      item.append(graphCol, body);
+      if (checkpoint.valid && reachable.has(checkpoint.id) && state === "connected") {
         const actions = document.createElement("div");
         actions.className = "history-row-actions";
         const button = document.createElement("button");
-        button.className = "button";
+        button.className = "button history-restore-btn";
         button.type = "button";
-        button.textContent = "Restore Previous";
-        button.addEventListener("click", (event) => { event.stopPropagation(); restorePrevious(); }, { once: true });
+        button.textContent = "Restore";
+        button.addEventListener("click", (event) => { event.stopPropagation(); restoreCheckpoint(checkpoint.id, isCurrent ? "previous checkpoint" : "checkpoint"); });
         actions.append(button);
-        body.append(actions);
+        item.append(actions);
       }
-      item.append(graphCol, body);
       item.addEventListener("click", () => {
         selectedHistoryId = checkpoint.id;
         historyList.querySelectorAll(".history-row").forEach((row) => row.removeAttribute("aria-selected"));
@@ -2827,8 +3151,52 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
     }
     recordMetric("historyList", started);
   };
+  const renderElementHistoryList = () => {
+    if (!elementHistoryList) return;
+    elementHistoryList.replaceChildren();
+    const sourcePath = elementHistorySourcePath();
+    if (elementHistoryTarget) elementHistoryTarget.textContent = sourcePath ? "Source file: " + sourcePath : "Select a mapped element to see file-specific history.";
+    const checkpoints = [...historyState.checkpoints].filter((checkpoint) => checkpointTouchesSource(checkpoint, sourcePath)).sort((left, right) => right.createdAt.localeCompare(left.createdAt) || right.id.localeCompare(left.id));
+    if (!checkpoints.length) {
+      const empty = document.createElement("p");
+      empty.className = "history-detail";
+      empty.textContent = sourcePath ? "No checkpoints touched this element's source file yet." : "No mapped source file for the current selection.";
+      elementHistoryList.append(empty);
+      return;
+    }
+    const reachable = historyAncestors(historyState.currentId, historyState.checkpoints);
+    for (const checkpoint of checkpoints) {
+      const isCurrent = checkpoint.id === historyState.currentId;
+      const isInvalid = !checkpoint.valid;
+      const row = document.createElement("article");
+      row.className = "element-history-row" + (isCurrent ? " is-current" : "") + (isInvalid ? " is-invalid" : "");
+      const summary = document.createElement("div");
+      summary.className = "element-history-summary";
+      const title = document.createElement("strong");
+      title.textContent = (isInvalid ? "Unavailable" : (checkpoint.promptSummary || "Edit")) + (isCurrent ? " · Current" : "");
+      summary.append(title);
+      const detail = document.createElement("div");
+      detail.className = "element-history-detail";
+      detail.textContent = checkpoint.id.slice(0, 8) + " · " + formatHistoryTime(checkpoint.createdAt) + " · " + (checkpoint.verification || "verification unavailable");
+      summary.append(detail);
+      row.append(summary);
+      if (checkpoint.valid && reachable.has(checkpoint.id) && state === "connected") {
+        const actions = document.createElement("div");
+        actions.className = "history-row-actions";
+        const button = document.createElement("button");
+        button.className = "button history-restore-btn";
+        button.type = "button";
+        button.textContent = "Restore";
+        button.addEventListener("click", (event) => { event.stopPropagation(); restoreCheckpoint(checkpoint.id, isCurrent ? "previous checkpoint" : "checkpoint"); });
+        actions.append(button);
+        row.append(actions);
+      }
+      elementHistoryList.append(row);
+    }
+  };
   const openHistory = () => {
     if (!historyDialog) return;
+    closeExclusivePanels("history");
     historyFocus = root.activeElement;
     renderHistoryList();
     historyDialog.hidden = false;
@@ -2839,19 +3207,26 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
     debugLog("browser-client:openHistory", "history opened", { checkpointCount: historyState.checkpoints.length, currentId: historyState.currentId, dialogHidden: historyDialog.hidden, listChildCount: historyList?.childElementCount ?? 0 }, "H9");
     // #endregion
   };
+  const onHistoryButtonClick = (event) => { event.stopPropagation(); openHistory(); };
+  const onElementHistoryButtonClick = (event) => { event.stopPropagation(); openElementHistory(); };
   const renderHistory = () => {
     if (previousLabel) previousLabel.textContent = "Previous: " + (historyState.previousId ? historyState.previousId.slice(0, 8) : "original");
     if (currentLabel) currentLabel.textContent = "Current: " + (historyState.currentId ? historyState.currentId.slice(0, 8) : "working tree") + (!historyState.gitAvailable ? " · no Git" : historyState.dirty ? " · dirty preserved" : "");
     if (restore) { restore.disabled = !historyState.canRestore || state !== "connected"; restore.setAttribute("aria-disabled", String(restore.disabled)); }
     if (historyDialog && !historyDialog.hidden) renderHistoryList();
+    if (elementHistoryDialog && !elementHistoryDialog.hidden) renderElementHistoryList();
   };
-  const restorePrevious = () => {
-    if (!historyState.canRestore || state !== "connected" || !confirm("Restore the previous Reframe checkpoint? Unrelated work will be preserved.")) return false;
-    if (active && !clearSelection("Selection cleared before restore")) return false;
-    restore.disabled = true;
-    explain("Restoring previous checkpoint…");
-    return send(base("history:restore", correlation("restore")));
+  const openElementHistory = () => {
+    if (!elementHistoryDialog) return;
+    if (!active?.mappingSource?.path) return explain("Select a mapped element to view element history");
+    closeExclusivePanels("element-history");
+    elementHistoryFocus = root.activeElement;
+    renderElementHistoryList();
+    elementHistoryDialog.hidden = false;
+    elementHistoryClose?.focus();
+    requestHistory();
   };
+  const restorePrevious = () => restoreCheckpoint(historyState.currentId, "previous checkpoint");
   const labelFor = (element) => element.tagName.toLowerCase() + (element.id ? "#" + element.id : element.classList.length ? "." + [...element.classList].slice(0, 2).join(".") : "");
   const placementDescriptionFor = (element, confidence) => {
     const component = element.getAttribute("data-reframe-component");
@@ -2881,36 +3256,105 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
     const text = matches.filter((element) => (element.innerText || element.textContent || "").replace(/\s+/g, " ").trim().slice(0, 256) === value.text);
     return text.length === 1 ? text[0] : undefined;
   };
+  const looksLikeDirectoryListingPage = () => {
+    const title = document.title.toLowerCase();
+    if (title.includes("index of") || title.includes("directory listing")) return true;
+    const sample = (document.body?.innerText || "").slice(0, 4_000).toLowerCase();
+    return sample.includes("parent directory") && (sample.includes("node_modules") || sample.includes("packages") || sample.includes("readme.md"));
+  };
+  const selectionBlockedReason = (tag, baseReason) => {
+    if (tag === "body" && looksLikeDirectoryListingPage()) return "Folder listing detected — run Reframe from your app directory (e.g. demo/vanilla-demo), not the repo root";
+    if (tag === "body") return "Page background is not selectable — click a card, button, or heading inside the page";
+    if (tag === "html") return "Page root is not selectable — click an element inside the page";
+    return baseReason || (tag + " elements are not selectable");
+  };
+  const warnDirectoryListingPage = () => { if (looksLikeDirectoryListingPage()) explain("Folder listing detected — cd into your project (e.g. demo/vanilla-demo) and run reframe there"); };
   const candidateFrom = (event) => {
     const path = typeof event.composedPath === "function" ? event.composedPath() : [event.target];
     if (path.includes(host)) return { element: null, reason: "Reframe controls are not selectable" };
     const elements = path.filter((item) => item instanceof HTMLElement);
     const element = elements.find((item) => item.hasAttribute("data-reframe-component") || item.hasAttribute("data-reframe-source-id") || item.hasAttribute("data-reframe-edit-target") || item.id || item.classList.length) ?? elements[0];
     if (!element) return { element: null, reason: "This target is unsupported" };
-    if (isLayerLocked(element)) return { element: null, reason: "Locked layers are not selectable" };
+    if (isLayerLocked(element)) return { element: null, reason: "Locked layer — unlock it in the Layers panel or pick another element" };
     const tag = element.tagName.toLowerCase();
-    if (["html", "body", "head", "script", "style", "link", "meta", "canvas", "iframe"].includes(tag)) return { element: null, reason: tag + " elements are not selectable" };
+    if (["html", "body", "head", "script", "style", "link", "meta", "canvas", "iframe"].includes(tag)) return { element: null, reason: selectionBlockedReason(tag, tag + " elements are not selectable") };
     const style = getComputedStyle(element);
     const rect = element.getBoundingClientRect();
-    if (style.display === "none" || style.visibility === "hidden" || Number(style.opacity) === 0 || rect.width <= 0 || rect.height <= 0) return { element: null, reason: "Hidden or zero-area elements are not selectable" };
+    if (style.display === "none" || style.visibility === "hidden" || Number(style.opacity) === 0 || rect.width <= 0 || rect.height <= 0) return { element: null, reason: "Hidden or zero-size element — show the layer or click a visible element" };
     return { element, reason: "" };
   };
-  const outlineSidebarClip = () => {
+  const OUTLINE_TAG_HEIGHT = 24;
+  const outlineTagMinTop = () => (chrome?.getAttribute("data-reframe-chrome-visible") === "true" ? 56 : 8);
+  const outlineSidebarClip = (rect) => {
     let left = 0;
     let right = 0;
-    if (layersPanel && !layersPanel.hidden) left = Math.max(left, layersPanel.getBoundingClientRect().right);
-    if (designPanel && !designPanel.hidden) right = Math.max(right, innerWidth - designPanel.getBoundingClientRect().left);
-    else if (designTab && !designTab.hidden) right = Math.max(right, innerWidth - designTab.getBoundingClientRect().left);
+    const addLeftClip = (edgeRight) => {
+      if (rect.right > edgeRight && rect.left < edgeRight) left = Math.max(left, edgeRight - rect.left);
+    };
+    const addRightClip = (edgeLeft) => {
+      if (rect.left < edgeLeft && rect.right > edgeLeft) right = Math.max(right, rect.right - edgeLeft);
+    };
+    if (toolRail && !toolRail.hidden) addLeftClip(toolRail.getBoundingClientRect().right);
+    if (layersPanel && !layersPanel.hidden) addLeftClip(layersPanel.getBoundingClientRect().right);
+    if (designPanel && !designPanel.hidden) addRightClip(designPanel.getBoundingClientRect().left);
+    else if (designTab && !designTab.hidden) addRightClip(designTab.getBoundingClientRect().left);
     return left || right ? "inset(0 " + right + "px 0 " + left + "px)" : "";
   };
+  const getOutlineTagPlacement = (rect) => {
+    const minTop = outlineTagMinTop();
+    const roomAbove = rect.top - minTop;
+    const roomBelow = innerHeight - rect.bottom;
+    const placeBelow = roomAbove < OUTLINE_TAG_HEIGHT && roomBelow >= OUTLINE_TAG_HEIGHT;
+    const placeInside = roomAbove < OUTLINE_TAG_HEIGHT && roomBelow < OUTLINE_TAG_HEIGHT;
+    return { placeBelow, placeInside, placeAbove: !placeBelow && !placeInside };
+  };
+  const placeOutlineTag = (outline, rect) => {
+    const tag = outline.querySelector(".tag");
+    if (!tag) return;
+    const { placeBelow, placeInside } = getOutlineTagPlacement(rect);
+    tag.classList.toggle("tag-below", placeBelow);
+    if (placeInside) {
+      tag.style.top = "2px";
+      tag.style.bottom = "auto";
+    } else {
+      tag.style.removeProperty("top");
+      tag.style.removeProperty("bottom");
+    }
+  };
+  const placeContextBar = (rect, outline) => {
+    if (!contextBar || contextBar.hidden) return;
+    const gap = 10;
+    const chromeTop = 56;
+    const pillWidth = contextBar.offsetWidth || 40;
+    const pillHeight = contextBar.offsetHeight || 38;
+    const clampLeft = (width, preferredLeft) => Math.max(12, Math.min(innerWidth - width - 12, preferredLeft));
+    const preferredLeft = rect.left + rect.width / 2 - pillWidth / 2;
+    contextBar.style.left = clampLeft(pillWidth, preferredLeft) + "px";
+    const { placeAbove } = getOutlineTagPlacement(rect);
+    let aboveTop = rect.top - pillHeight - gap;
+    if (placeAbove) aboveTop = rect.top - pillHeight - OUTLINE_TAG_HEIGHT - gap * 2;
+    if (outline && placeAbove) {
+      const tag = outline.querySelector(".tag");
+      if (tag) {
+        const tagRect = tag.getBoundingClientRect();
+        if (tagRect.height > 0 && aboveTop + pillHeight + gap > tagRect.top) aboveTop = tagRect.top - gap - pillHeight;
+      }
+    }
+    contextBar.style.top = (aboveTop >= chromeTop ? aboveTop : rect.bottom + gap) + "px";
+  };
   const placeOutline = (outline, rect) => {
-    outline.style.left = Math.max(0, rect.left) + "px";
-    outline.style.top = Math.max(0, rect.top) + "px";
-    outline.style.width = Math.max(0, Math.min(innerWidth - Math.max(0, rect.left), rect.width)) + "px";
-    outline.style.height = Math.max(0, Math.min(innerHeight - Math.max(0, rect.top), rect.height)) + "px";
-    const clip = outlineSidebarClip();
-    outline.style.clipPath = clip;
-    if (!clip) outline.style.removeProperty("clip-path");
+    outline.style.left = rect.left + "px";
+    outline.style.top = rect.top + "px";
+    outline.style.width = Math.max(0, rect.width) + "px";
+    outline.style.height = Math.max(0, rect.height) + "px";
+    placeOutlineTag(outline, rect);
+    const clip = outlineSidebarClip(rect);
+    const border = outline.querySelector(".outline-border");
+    if (border) {
+      border.style.clipPath = clip;
+      if (!clip) border.style.removeProperty("clip-path");
+    }
+    outline.style.removeProperty("clip-path");
   };
   const updateApplyState = () => {
     if (!apply) return;
@@ -2920,7 +3364,6 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
     const styleChanged = Boolean(active && stylesChanged(active));
     const moved = Boolean(active && translateChanged(active));
     const hasChanges = widthChanged || heightChanged || textChanged || styleChanged || moved;
-    const inlineOnly = Boolean(active && (active.mappingConfidence === "not-mapped" || active.mappingConfidence === "ambiguous"));
     const enabled = Boolean(active && !active.overlapBlocked && hasChanges && active.element.isConnected && state === "connected" && !active.applying);
     apply.setAttribute("aria-disabled", String(!enabled));
     apply.disabled = !enabled;
@@ -2930,39 +3373,32 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
     const reason = applyDisabledReason();
     if (diagnostic && active) {
       if (active.applying) diagnostic.textContent = autosaveMode ? "Saving…" : "Saving…";
-      else if (reason && (state !== "connected" || active.overlapBlocked || active.mappingConfidence === "pending")) diagnostic.textContent = reason;
+      else if (hasChanges && usesOverridesPath(active) && state === "connected" && !active.overlapBlocked) diagnostic.textContent = "Unsaved — saves to .reframe/overrides.css";
+      else if (reason && (state !== "connected" || active.overlapBlocked || (active.mappingConfidence === "pending" && !usesOverridesPath(active)))) diagnostic.textContent = reason;
     }
     syncGenerateButton();
   };
   const positionAiPanel = () => {
     if (!aiPanel || aiPanel.hidden) return;
-    const panelWidth = Math.min(420, innerWidth - 24);
-    const panelHeight = aiPanel.offsetHeight || 220;
-    const chromeTop = 56;
-    const gap = 10;
-    aiPanel.style.width = panelWidth + "px";
-    aiPanel.style.left = Math.max(12, innerWidth - panelWidth - 12) + "px";
-    const belowChrome = chromeTop + 8;
-    const belowContext = contextBar && !contextBar.hidden ? contextBar.offsetTop + contextBar.offsetHeight + gap : belowChrome;
-    aiPanel.style.top = Math.max(belowChrome, belowContext) + "px";
-    if (belowContext + panelHeight > innerHeight - 12) aiPanel.style.maxHeight = Math.max(180, innerHeight - belowContext - 12) + "px";
-    else aiPanel.style.maxHeight = "";
+    aiPanel.style.height = "min(720px, calc(100vh - 80px))";
+    aiPanel.style.maxHeight = "calc(100vh - 80px)";
   };
   const updateGeometry = () => {
     geometryFrame = undefined;
     if (hoverTarget?.isConnected && hoverOutline) placeOutline(hoverOutline, hoverTarget.getBoundingClientRect());
     positionAiPanel();
-    if (!active?.element.isConnected) return;
+    positionMoreMenu();
+    positionContextMoreMenu();
+    if (!active?.element?.isConnected) {
+      if (showcaseMode && showcaseUiActive && showcaseTarget?.isConnected) showcasePlaceSelection();
+      return;
+    }
     const rect = active.element.getBoundingClientRect();
     if (selectedOutline) placeOutline(selectedOutline, rect);
+    placeContextBar(rect, selectedOutline);
     const gap = 10;
     const chromeTop = 56;
     const clampLeft = (width, preferredLeft) => Math.max(12, Math.min(innerWidth - width - 12, preferredLeft));
-    if (contextBar && !contextBar.hidden) {
-      const pillWidth = contextBar.offsetWidth || 40;
-      contextBar.style.left = clampLeft(pillWidth, rect.right - pillWidth) + "px";
-      contextBar.style.top = Math.max(chromeTop, rect.top - (contextBar.offsetHeight || 38) - gap) + "px";
-    }
     if (panel && !panel.hidden) {
       if (designPanel && !designPanel.hidden) {
         panel.style.left = "";
@@ -3040,8 +3476,6 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
     if (selectedOutline) selectedOutline.hidden = true;
     if (contextBar) contextBar.hidden = true;
     if (comments) comments.hidden = true;
-    if (generate) generate.hidden = true;
-    if (historyButton) historyButton.hidden = true;
     if (panel) panel.hidden = true;
     if (designPanel) designPanel.hidden = true;
     if (designTab) designTab.hidden = true;
@@ -3163,28 +3597,31 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
   };
   const focusTextInput = () => { if (!textInput || !active || !isTextElement(active.element)) return; textInput.hidden = false; textInput.classList.remove("reframe-text-off"); textInput.focus(); textInput.select?.(); };
   const onDocumentDblClick = (event) => {
-    if (!selectMode) return;
+    if (!selectMode || activeTool !== "text") return;
     const path = event.composedPath?.() || [];
     if (path.includes(host)) return;
     const result = candidateFrom(event);
     if (!result.element || !isTextElement(result.element)) return;
     event.preventDefault();
     event.stopImmediatePropagation();
-    if (activeTool !== "text") setActiveTool("text");
     choose(result.element);
     focusTextInput();
   };
   const onDocumentClick = (event) => {
     if (!moreMenuEl?.hidden && !event.composedPath?.().some((node) => node === moreMenuEl || node === moreButton)) closeMoreMenu();
+    if (!contextMoreMenuEl?.hidden && !event.composedPath?.().some((node) => node === contextMoreMenuEl || node === contextMoreButton)) closeContextMoreMenu();
     if (!referenceKindMenu?.hidden && !event.composedPath?.().some((node) => node === referenceKindMenu || node === referenceKindTrigger || node === referenceKindPicker)) closeReferenceKindMenu();
     if (!referenceBrandMenu?.hidden && !event.composedPath?.().some((node) => node === referenceBrandMenu || node === referenceBrandTrigger || node === referenceBrandPicker)) closeReferenceBrandMenu();
     if (!aiChatMenu?.hidden && !event.composedPath?.().some((node) => node === aiChatMenu || node === aiChatTrigger || node === aiChat)) closeCodexChatMenu();
     if (openDesignPickerMenu && !event.composedPath?.().some((node) => node === openDesignPickerMenu.menu || node === openDesignPickerMenu.trigger || node?.contains?.(openDesignPickerMenu.menu) || node?.contains?.(openDesignPickerMenu.trigger))) closeDesignPickers();
-    if (!selectMode) return;
+    if (!selectMode) {
+      if (activeTool === "hand") explain("Hand tool (H): drag to pan — press V or click Move in the tool rail to select elements");
+      return;
+    }
     const path = event.composedPath?.() || [];
     if (path.includes(host)) return;
     const result = candidateFrom(event);
-    if (!result.element) { explain(result.reason); return; }
+    if (!result.element) { explain(result.reason || "Could not select that target"); return; }
     event.preventDefault();
     event.stopImmediatePropagation();
     choose(result.element);
@@ -3394,7 +3831,7 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
   };
   const onLayersResizeMove = (event) => {
     if (!layersResizeDrag || layersResizeDrag.pointerId !== event.pointerId) return;
-    layersPanelWidth = Math.min(360, Math.max(260, Math.round(layersResizeDrag.startWidth + (event.clientX - layersResizeDrag.startX))));
+    layersPanelWidth = Math.min(420, Math.max(280, Math.round(layersResizeDrag.startWidth + (event.clientX - layersResizeDrag.startX))));
     if (layersPanel) layersPanel.style.width = layersPanelWidth + "px";
   };
   const onLayersResizeUp = (event) => {
@@ -3429,9 +3866,9 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
     pushEditHistory();
   };
   const onKeyDown = (event) => {
-    const target = event.target;
-    const inField = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement || target?.isContentEditable;
-    if (!inField && !event.ctrlKey && !event.metaKey && !event.altKey) {
+    const inField = blocksToolShortcuts(event);
+    const toolShortcutBlocked = inField || event.ctrlKey || event.metaKey || event.altKey;
+    if (!toolShortcutBlocked) {
       const key = event.key.toLowerCase();
       if (key === "v") { event.preventDefault(); setActiveTool("select"); return; }
       if (key === "h") { event.preventDefault(); setActiveTool("hand"); return; }
@@ -3445,13 +3882,14 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
     if (!commentMode && selectMode && active && (event.ctrlKey || event.metaKey) && (event.key.toLowerCase() === "z" && event.shiftKey || event.key.toLowerCase() === "y") && !inField) { event.preventDefault(); redoEdit(); return; }
     if (commentMode && event.key === "Delete" && selectedImageId) { event.preventDefault(); pushCommentHistory(); void deleteImageAnnotation(selectedImageId).then(() => pushCommentHistory()); return; }
     if (!commentMode && selectMode && active && event.key === "Delete" && !inField) { event.preventDefault(); deleteSelected(); return; }
+    if (event.key === "Escape" && aiPanel && !aiPanel.hidden && !inField) { event.preventDefault(); closeAiPanel(); return; }
     if (event.key === "Escape" && referenceKindMenu && !referenceKindMenu.hidden) { event.preventDefault(); closeReferenceKindMenu(); return; }
     if (event.key === "Escape" && referenceBrandMenu && !referenceBrandMenu.hidden) { event.preventDefault(); closeReferenceBrandMenu(); return; }
     if (event.key === "Escape" && aiChatMenu && !aiChatMenu.hidden) { event.preventDefault(); closeCodexChatMenu(); return; }
     if (event.key === "Escape" && openDesignPickerMenu) { event.preventDefault(); closeDesignPickers(); return; }
     if (event.key === "Escape" && sourceCompareOverlay && !sourceCompareOverlay.hidden) { event.preventDefault(); closeSourceCompare(); return; }
     if (event.key === "Escape" && commentMode) { event.preventDefault(); exitCommentMode(); return; }
-    if (event.key === "Escape" && (!timeOverlay?.hidden || !historyDialog?.hidden || !annotationDialog?.hidden)) { event.preventDefault(); closeComparison(); closeSourceCompare(); closeHistory(); closeAnnotations(); return; }
+    if (event.key === "Escape" && (!timeOverlay?.hidden || !historyDialog?.hidden || !elementHistoryDialog?.hidden || !annotationDialog?.hidden)) { event.preventDefault(); closeComparison(); closeSourceCompare(); closeHistory(); closeElementHistory(); closeAnnotations(); return; }
     if (event.currentTarget === time && event.key === " " && !event.repeat) { event.preventDefault(); startTimeHold(); return; }
     if (selectMode && event.key === "Escape" && active) { event.preventDefault(); clearSelection(active.applying ? "Apply cancelled" : "Temporary resize cancelled", true, true, Boolean(active.applying)); }
   };
@@ -3459,12 +3897,8 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
   const onTimePointerDown = (event) => { if (event.button !== 0) return; startTimeHold(event.pointerId); };
   const onTimePointerUp = (event) => endTimeHold(event.pointerId);
   const onTimeClick = (event) => { if (suppressHistoryClick) { suppressHistoryClick = false; event.preventDefault(); return; } openHistory(); };
-  const cancelTimeMachine = () => { closeComparison(); closeSourceCompare(); closeHistory(); };
-  const toggleSelect = () => {
-    if (active?.applying) { explain("Saving… press Deselect to cancel"); return; }
-    if (selectMode && (activeTool === "select" || activeTool === "text")) setActiveTool("hand");
-    else setActiveTool("select");
-  };
+  const cancelTimeMachine = () => { closeComparison(); closeSourceCompare(); closeHistory(); closeElementHistory(); };
+  const onToolbarDesignClick = () => { if (!active) { explain("Select an element to open the design panel"); return; } toggleDesignPanel(); };
   const hasPendingChanges = () => {
     if (!active) return false;
     const widthChanged = active.previewWidth !== Math.round(active.original.computedWidth);
@@ -3501,10 +3935,9 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
   const scheduleAutosave = () => {
     if (!active || active.applying || active.overlapBlocked) return;
     if (!hasPendingChanges()) return;
-    const unmapped = active.mappingConfidence === "not-mapped" || active.mappingConfidence === "ambiguous";
-    if (!unmapped && (active.mappingConfidence === "pending" || !mappingWritable(active))) return;
+    if (!usesOverridesPath(active) && !mappingWritable(active)) return;
     if (autosaveTimer) clearTimeout(autosaveTimer);
-    if (diagnostic && active && !active.applying) diagnostic.textContent = "Unsaved changes";
+    if (diagnostic && active && !active.applying) diagnostic.textContent = usesOverridesPath(active) ? "Unsaved — saves to .reframe/overrides.css" : "Unsaved changes";
     autosaveTimer = setTimeout(() => { autosaveTimer = undefined; commitChanges({ autosave: true }); }, AUTOSAVE_MS);
   };
   const flushAutosave = async () => {
@@ -3516,12 +3949,12 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
   const commitChanges = ({ autosave = false } = {}) => {
     if (!active || active.applying) return;
     if (!hasPendingChanges()) return;
-    const unmapped = active.mappingConfidence === "not-mapped" || active.mappingConfidence === "ambiguous";
-    if (unmapped && state !== "connected") {
+    const overridesPath = usesOverridesPath(active);
+    if (overridesPath && state !== "connected") {
       if (commitInlinePreview()) explain(autosave ? "Saved" : "Saved");
       return;
     }
-    if (!unmapped && !mappingWritable(active)) return;
+    if (!overridesPath && !mappingWritable(active)) return;
     autosaveMode = autosave;
     active.proposalId = correlation("proposal");
     active.applying = true;
@@ -3534,7 +3967,7 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
     }
     const sent = send({ ...base("edit:apply", correlation("apply")), selectionId: active.selectionId, proposalId: active.proposalId, tabId, generation: active.generation, width: active.previewWidth, height: active.previewHeight, previewText: active.previewText === active.original.text ? null : active.previewText, previewStyles: stylesChanged(active) || translateChanged(active) ? active.previewStyles : null, fingerprint: active.fingerprint, original: active.original, breakpoint: active.breakpoint, sharedImpactAccepted: active.sharedImpactAccepted, overlapAccepted: active.overlapAccepted });
     if (!sent) { active.applying = false; autosaveMode = false; explain("Disconnected — preview is temporary"); updateApplyState(); return; }
-    explain(autosave ? "Autosaving…" : "Saving to source…");
+    explain(autosave ? (overridesPath ? "Autosaving to .reframe/overrides.css…" : "Autosaving…") : (overridesPath ? "Saving to .reframe/overrides.css…" : "Saving to source…"));
     if (applyTimer) clearTimeout(applyTimer);
     applyTimer = setTimeout(() => {
       if (!active?.applying) return;
@@ -3663,7 +4096,7 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
     currentRoute = next;
     hideHover();
     if (active) clearSelection("Route changed; reselect the element");
-    closeComparison(); closeHistory(); closeAnnotations(); commentPointer = undefined; endCommentPointerTracking(); annointId = undefined; annointDraft = { strokes: [], texts: [] }; annointPointer = undefined; requestHistory(); requestAnnotations(); scheduleAnnotations(); void loadAnnoints();
+    closeComparison(); closeHistory(); closeElementHistory(); closeAnnotations(); commentPointer = undefined; endCommentPointerTracking(); annointId = undefined; annointDraft = { strokes: [], texts: [] }; annointPointer = undefined; requestHistory(); requestAnnotations(); scheduleAnnotations(); void loadAnnoints();
   };
   const sendPing = (kind) => {
     const id = correlation(kind);
@@ -3703,6 +4136,8 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
       requestAnnotations();
       void loadAnnoints();
       void loadPendingAiReview();
+      warnDirectoryListingPage();
+      if (!active && selectMode) explain("Click an element to select · V select · H pan");
     } else if (message.type === "ping") {
       send(base("pong", message.correlationId));
     } else if (message.type === "pong") {
@@ -3733,7 +4168,7 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
       if (styleOwner) active.element.setAttribute("data-reframe-style-owner", styleOwner.path + ":" + styleOwner.line);
       else active.element.removeAttribute("data-reframe-style-owner");
       active.element.setAttribute("data-reframe-reused", String(Boolean(message.requiresImpactApproval || active.sharedImpactAccepted)));
-      explain(message.evidence);
+      explain(mappingStatusMessage(message.confidence, message.evidence, Boolean(message.requiresImpactApproval)));
       syncReferencePlacementUI();
       syncGenerateButton();
       updateApplyState();
@@ -3765,8 +4200,8 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
         active.previewWidth = Math.round(rect.width);
         active.previewHeight = Math.round(rect.height);
         explain("Source already matches this preview");
-      } else if (message.code === "STYLE_UNMAPPED") {
-        explain("Could not map style change to source — try a different element or edit CSS directly");
+      } else if (message.code === "STYLE_UNMAPPED" || /No unique static|Multiple .* owners remain/i.test(message.code || "")) {
+        explain("Saved to .reframe/overrides.css (unmapped element)");
       } else if (message.code === "CHECKPOINT_MISSING") {
         explain("Apply failed: history checkpoint was not created — retry or reselect");
       } else if (message.code?.startsWith("VERIFICATION_FAILED") || message.status === "rolled-back") {
@@ -3789,15 +4224,20 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
       const overridesLink = document.querySelector('link[data-reframe-overrides]');
       if (overridesLink) { const fresh = new URL(overridesLink.href, location.href); fresh.searchParams.set("reframe", String(Date.now())); overridesLink.href = fresh.href; }
       // ponytail: full stylesheet reload only when preview styles changed; width/height/text skips re-fetching every CSS file
-      if (ours && stylesChanged(active)) refreshStylesheets();
+      if (ours && (stylesChanged(active) || message.code === "SOURCE_CLASS_PROMOTED")) refreshStylesheets();
       if (!message.checkpointId) {
         if (ours) {
           active.applying = false;
           const wasAutosave = autosaveMode;
           autosaveMode = false;
           clearDraftCache();
-          if (wasAutosave) commitSavedPreview("Autosaved");
-          else commitSavedPreview("Saved to .reframe/overrides");
+          if (message.code === "SOURCE_CLASS_PROMOTED") {
+            applySourcePromotion();
+            commitSavedPreview(promotionSaveMessage(wasAutosave));
+          } else {
+            const saved = usesOverridesPath(active) ? overrideSaveMessage(wasAutosave) : (wasAutosave ? "Autosaved" : "Saved to .reframe/overrides");
+            commitSavedPreview(saved);
+          }
         } else if (active?.applying && message.proposalId === active.proposalId) {
           active.applying = false;
           autosaveMode = false;
@@ -3815,9 +4255,9 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
         historyState = { ...historyState, canRestore: true };
         if (autosaveMode) {
           autosaveMode = false;
-          commitSavedPreview("Autosaved");
+          commitSavedPreview(usesOverridesPath(active) ? overrideSaveMessage(true) : "Autosaved");
         } else {
-          const savedMessage = message.visualComplete === false ? "Saved to source; visual history degraded" : (message.checkpointId ? "Saved to source" : "Saved to .reframe/overrides");
+          const savedMessage = message.visualComplete === false ? "Saved to source; visual history degraded" : (message.checkpointId ? "Saved to source" : overrideSaveMessage(false));
           commitSavedPreview(savedMessage);
         }
       } else if (active?.applying && message.proposalId === active.proposalId) {
@@ -3837,7 +4277,7 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
       if (historyState.incomplete.length) explain("Incomplete history detected; source was not changed. Remove .tmp entries after review.");
       scheduleAnnotationRequest();
     } else if (message.type === "history:result") {
-      if (message.status === "applied") { explain("Previous checkpoint restored; reloading page"); setTimeout(() => location.reload(), 50); }
+      if (message.status === "applied") { explain("Checkpoint restored; reloading page"); setTimeout(() => location.reload(), 50); }
       else { explain("Restore rejected: " + message.code); requestHistory(); }
     } else if (message.type === "annotation:state") {
       annotationState = { annotations: message.annotations || [], issues: message.issues || [], parsedFiles: message.parsedFiles || 0, renderedForRoute: message.renderedForRoute || 0 }; renderAnnotationList(); scheduleAnnotations();
@@ -3846,8 +4286,67 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
       else explain(message.code + " — comment draft was kept for retry");
     }
   };
+  const standaloneAnnotations = [];
+  const standaloneCheckpoints = [
+    { id: "cp-demo-1", parentId: null, createdAt: Date.now() - 900000, valid: true, promptSummary: "Initial session", verification: "verified", route: "/demo/app.html", kind: "edit", files: ["demo/app.html"] },
+    { id: "cp-demo-2", parentId: "cp-demo-1", createdAt: Date.now() - 120000, valid: true, promptSummary: "Styled primary CTA", verification: "verified", route: "/demo/app.html", kind: "edit", files: ["demo/style.css"] },
+  ];
+  let standaloneCheckpointSeq = 2;
+  const dispatchStandalone = (message) => onMessage({ data: JSON.stringify(message) });
+  const handleStandaloneOutbound = (message) => {
+    const cid = message.correlationId;
+    const reply = { protocol: PROTOCOL, sessionId: session, correlationId: cid };
+    if (message.type === "client:ready") {
+      dispatchStandalone({ ...reply, type: "server:ready", project: { id: projectId }, connectionId: "standalone-demo" });
+    } else if (message.type === "ping") {
+      dispatchStandalone({ ...reply, type: "pong" });
+    } else if (message.type === "mapping:request") {
+      dispatchStandalone({ ...reply, type: "mapping:result", selectionId: message.selectionId, generation: message.generation, confidence: "exact", evidence: "Demo mapping — element id matched in demo/app.html", candidates: [{ path: "demo/app.html", line: 24, evidence: "id selector" }, { path: "demo/style.css", line: 88, evidence: "stylesheet rule" }], requiresImpactApproval: false });
+    } else if (message.type === "edit:apply") {
+      standaloneCheckpointSeq += 1;
+      const cpId = "cp-demo-" + standaloneCheckpointSeq;
+      const parentId = standaloneCheckpoints[standaloneCheckpoints.length - 1]?.id ?? null;
+      standaloneCheckpoints.push({ id: cpId, parentId, createdAt: Date.now(), valid: true, promptSummary: "Visual edit applied", verification: "verified", route: route(), kind: "edit", files: ["demo/style.css"] });
+      dispatchStandalone({ ...reply, type: "edit:accepted", selectionId: message.selectionId, proposalId: message.proposalId, generation: message.generation, tabId: message.tabId, checkpointId: cpId, visualComplete: true, code: "STANDALONE_PREVIEW" });
+    } else if (message.type === "history:request") {
+      const current = standaloneCheckpoints[standaloneCheckpoints.length - 1];
+      const previous = standaloneCheckpoints.length > 1 ? standaloneCheckpoints[standaloneCheckpoints.length - 2] : null;
+      dispatchStandalone({ type: "history:state", protocol: PROTOCOL, correlationId: cid, sessionId: session, currentId: current?.id ?? null, previousId: previous?.id ?? null, canRestore: standaloneCheckpoints.length > 1, visualComplete: true, gitAvailable: false, dirty: false, incomplete: [], checkpoints: standaloneCheckpoints.slice(-120), comparison: null });
+    } else if (message.type === "history:restore") {
+      dispatchStandalone({ ...reply, type: "history:result", status: "applied", code: "RESTORED" });
+    } else if (message.type === "annotation:list") {
+      dispatchStandalone({ type: "annotation:state", protocol: PROTOCOL, correlationId: cid, sessionId: session, annotations: standaloneAnnotations.slice(), issues: [], parsedFiles: 0, renderedForRoute: 0 });
+    } else if (message.type === "annotation:create") {
+      standaloneAnnotations.push({ id: "ann-" + Date.now(), author: message.author, comment: message.comment, status: "open", route: route(), component: message.component });
+      dispatchStandalone({ ...reply, type: "annotation:result", status: "applied", code: "ANNOTATION_CREATED" });
+      dispatchStandalone({ type: "annotation:state", protocol: PROTOCOL, correlationId: cid, sessionId: session, annotations: standaloneAnnotations.slice(), issues: [], parsedFiles: 0, renderedForRoute: 0 });
+    } else if (message.type === "ai:generate") {
+      dispatchStandalone({ type: "ai:state", protocol: PROTOCOL, correlationId: cid, sessionId: session, phase: "complete", generationId: message.generationId || cid, message: "Website demo mode — run npx reframe locally for real Codex edits.", proposal: null });
+    }
+  };
   const connect = () => {
-    if (disposed || socket?.readyState === WebSocket.OPEN || socket?.readyState === WebSocket.CONNECTING) return;
+    if (disposed) return;
+    if (standalone) {
+      if (socket?.readyState === WebSocket.OPEN || socket?.readyState === WebSocket.CONNECTING) return;
+      if (attempts === 0) setState("connecting");
+      const current = { readyState: WebSocket.CONNECTING, _open: null, _message: null };
+      current.send = (raw) => { try { handleStandaloneOutbound(JSON.parse(raw)); } catch {} };
+      current.close = () => { current.readyState = WebSocket.CLOSED; };
+      current.addEventListener = (type, fn) => {
+        if (type === "open") current._open = fn;
+        if (type === "message") current._message = fn;
+      };
+      socket = current;
+      current.addEventListener("message", onMessage);
+      setTimeout(() => {
+        if (current !== socket || disposed) return;
+        current.readyState = WebSocket.OPEN;
+        current._open?.();
+        send({ ...base("client:ready", correlation("ready")), projectId, url: location.href, route: location.pathname + location.search + location.hash, viewport: { width: innerWidth, height: innerHeight } });
+      }, 30);
+      return;
+    }
+    if (socket?.readyState === WebSocket.OPEN || socket?.readyState === WebSocket.CONNECTING) return;
     if (attempts === 0) setState("connecting");
     const current = new WebSocket(socketUrl, protocols);
     socket = current;
@@ -3917,7 +4416,7 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
       if (aiStatus && !aiReview) {
         if (!response.ok) aiStatus.textContent = "Could not load Codex tasks — paste a task ID from the Codex app";
         else aiStatus.textContent = sessions.length
-          ? "Pick a Codex task or paste a task ID, then Generate"
+          ? "Pick a Codex task or paste a task ID, then click Generate in the panel"
           : "No Codex tasks found — create one in the Codex app (~/.codex) or paste a task ID";
         aiStatus.dataset.reframeAiWarning = "false";
       }
@@ -3947,17 +4446,27 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
     explain("AI changes ready — use Accept or Reject in the panel");
   };
   const openAiPanel = () => {
+    closeExclusivePanels("ai");
     if (aiPanel) aiPanel.hidden = false;
     syncAiReviewIndicator();
     void loadCodexSessions();
     scheduleGeometry();
   };
-  const generateEdit = async () => {
+  const openAiPromptPanel = () => {
     if (!active) { explain("Select an element before Generate"); return; }
     if (!["exact", "probable"].includes(active.mappingConfidence)) { explain(generate?.title || "Select a mapped element before Generate"); return; }
     openAiPanel();
+    generate?.blur();
+    if (aiStatus && !aiReview) aiStatus.textContent = "Enter a prompt, then click Generate in the panel";
+    if (aiGenerate) aiGenerate.hidden = aiReview?.status === "generating" || aiReview?.status === "review";
+    aiPrompt?.focus();
+  };
+  const submitAiGenerate = async () => {
+    if (!active) { explain("Select an element before Generate"); return; }
+    if (!["exact", "probable"].includes(active.mappingConfidence)) { explain(generate?.title || "Select a mapped element before Generate"); return; }
     const instruction = aiPrompt?.value.trim() ?? "";
-    if (!instruction) { if (aiStatus) aiStatus.textContent = "Enter a prompt, then click Generate"; aiPrompt?.focus(); return; }
+    if (!instruction) { if (aiStatus) aiStatus.textContent = "Enter a prompt, then click Generate in the panel"; aiPrompt?.focus(); return; }
+    openAiPanel();
     const generationId = correlation("generation");
     const conversationId = aiChatValue.trim() || aiSessionId?.value.trim() || undefined;
     const taskLabel = !conversationId
@@ -3972,9 +4481,20 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
         : "Sending to a new ephemeral Codex task - pick an existing task to continue one in the Codex app";
     }
     if (aiStop) aiStop.hidden = false;
+    if (aiGenerate) aiGenerate.hidden = true;
     for (const button of [aiAccept, aiRefine, aiCompare, aiReject, aiDismiss]) if (button) button.hidden = true;
-    send({ ...base("ai:generate", correlation("ai")), selectionId: active.selectionId, generation: active.generation, generationId, instruction, ...(conversationId ? { conversationId } : {}), ...(frozenReferencePlanId ? { referencePlanId: frozenReferencePlanId } : {}) });
+    let imageAttachmentId;
+    if (aiAttachedImage) {
+      try { imageAttachmentId = await uploadAiAttachment(aiAttachedImage); }
+      catch (error) { if (aiStatus) aiStatus.textContent = "Could not upload pasted image: " + (error?.message || error); aiReview = undefined; if (aiGenerate) aiGenerate.hidden = false; return; }
+    }
+    send({ ...base("ai:generate", correlation("ai")), selectionId: active.selectionId, generation: active.generation, generationId, instruction, ...(conversationId ? { conversationId } : {}), ...(frozenReferencePlanId ? { referencePlanId: frozenReferencePlanId } : {}), ...(imageAttachmentId ? { imageAttachmentId } : {}) });
     scheduleGeometry();
+  };
+  const onAiPromptKeyDown = (event) => {
+    if (event.key !== "Enter" || event.shiftKey || event.isComposing) return;
+    event.preventDefault();
+    event.stopPropagation();
   };
   const aiAction = (action) => {
     if (!aiReview?.generationId) return;
@@ -4035,7 +4555,6 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
     active?.element?.removeAttribute("data-reframe-style-owner");
     active?.element?.removeAttribute("data-reframe-reused");
     testConnection?.removeEventListener("click", test);
-    select?.removeEventListener("click", toggleSelect);
     annotationsToggle?.removeEventListener("click", toggleAnnotationsVisible);
     commentModeToggle?.removeEventListener("click", toggleCommentMode);
     commentUndo?.removeEventListener("click", undoComment);
@@ -4045,7 +4564,7 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
     editDelete?.removeEventListener("click", deleteSelected);
     comments?.removeEventListener("click", openComments);
     reference?.removeEventListener("click", openReference);
-    referenceClose?.removeEventListener("click", closeReference);
+    aiClose?.removeEventListener("click", closeAiPanel);
     referenceForm?.removeEventListener("submit", buildReferencePlan);
     referenceFreeze?.removeEventListener("click", freezeReferencePlan);
     referenceKind?.removeEventListener("change", onReferenceKindChange);
@@ -4062,7 +4581,11 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
     apply?.removeEventListener("click", applyProposal);
     impact?.removeEventListener("click", acceptImpact);
     overlap?.removeEventListener("click", acceptOverlap);
-    generate?.removeEventListener("click", generateEdit);
+    generate?.removeEventListener("click", onToolbarGenerateClick);
+    aiGenerate?.removeEventListener("click", onAiGenerateClick);
+    aiAttachmentClear?.removeEventListener("click", clearAiAttachedImage);
+    document.removeEventListener("paste", onAiPanelPaste, true);
+    aiPrompt?.removeEventListener("keydown", onAiPromptKeyDown);
     aiReviewButton?.removeEventListener("click", openPendingAiReview);
     aiAccept?.removeEventListener("click", acceptAi);
     aiRefine?.removeEventListener("click", refineAi);
@@ -4075,7 +4598,8 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
     handleMove?.removeEventListener("pointerdown", onHandleMoveDown);
     endDocumentDrag();
     textInput?.removeEventListener("input", onTextInput);
-    historyButton?.removeEventListener("click", openHistory);
+    historyButton?.removeEventListener("click", onHistoryButtonClick);
+    contextHistoryButton?.removeEventListener("click", onElementHistoryButtonClick);
     if (chromeHideTimer) clearTimeout(chromeHideTimer);
     document.removeEventListener("pointermove", onGlobalPointerMove, true);
     chrome?.removeEventListener("pointerleave", onChromePointerLeave, true);
@@ -4115,11 +4639,12 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
     time?.removeEventListener("keydown", onKeyDown);
     time?.removeEventListener("keyup", onTimeKeyUp);
     historyClose?.removeEventListener("click", closeHistory);
+    elementHistoryClose?.removeEventListener("click", closeElementHistory);
     annotationClose?.removeEventListener("click", closeAnnotations);
     annotationForm?.removeEventListener("submit", onAnnotationSubmit);
     removeEventListener("blur", cancelTimeMachine);
     document.removeEventListener("visibilitychange", cancelTimeMachine);
-    closeComparison(); closeHistory(); closeAnnotations(); closeReference(); annotationLayer?.replaceChildren(); for (const url of screenshotCache.values()) URL.revokeObjectURL(url); screenshotCache.clear();
+    closeComparison(); closeHistory(); closeElementHistory(); closeAnnotations(); closeReference(); closeAiPanel(); revokeAiAttachmentPreview(); annotationLayer?.replaceChildren(); for (const url of screenshotCache.values()) URL.revokeObjectURL(url); screenshotCache.clear();
     restorePageOffset();
     removeEventListener("pagehide", teardown);
     socket?.close(1000, "EXIT");
@@ -4254,7 +4779,6 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
     document.addEventListener("pointercancel", onCommentPointerUp, true);
   };
   testConnection?.addEventListener("click", test);
-  select?.addEventListener("click", toggleSelect);
   annotationsToggle?.addEventListener("click", toggleAnnotationsVisible);
   collapseButton?.addEventListener("click", toggleToolbarCollapsed);
   heatmapToggle?.addEventListener("click", toggleHeatmap);
@@ -4266,7 +4790,7 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
   editDelete?.addEventListener("click", deleteSelected);
   comments?.addEventListener("click", openComments);
   reference?.addEventListener("click", openReference);
-  referenceClose?.addEventListener("click", closeReference);
+  aiClose?.addEventListener("click", closeAiPanel);
   referenceForm?.addEventListener("submit", buildReferencePlan);
   referenceFreeze?.addEventListener("click", freezeReferencePlan);
   referenceKind?.addEventListener("change", onReferenceKindChange);
@@ -4289,7 +4813,14 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
   impact?.addEventListener("click", acceptImpact);
   overlap?.addEventListener("click", acceptOverlap);
   cancel?.addEventListener("click", cancelSelection);
-  generate?.addEventListener("click", () => { void generateEdit(); });
+  const onToolbarGenerateClick = () => { openAiPromptPanel(); };
+  const onAiGenerateClick = () => { void submitAiGenerate(); };
+  generate?.addEventListener("click", onToolbarGenerateClick);
+  generateButton?.addEventListener("click", onToolbarGenerateClick);
+  aiGenerate?.addEventListener("click", onAiGenerateClick);
+  aiAttachmentClear?.addEventListener("click", clearAiAttachedImage);
+  document.addEventListener("paste", onAiPanelPaste, true);
+  aiPrompt?.addEventListener("keydown", onAiPromptKeyDown);
   aiReviewButton?.addEventListener("click", openPendingAiReview);
   aiAccept?.addEventListener("click", acceptAi);
   aiRefine?.addEventListener("click", refineAi);
@@ -4352,6 +4883,8 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
     field.unit.addEventListener("change", onDesignUnitInput(field));
   }
   for (const button of toolButtons) button.addEventListener("click", () => setActiveTool(button.dataset.reframeTool));
+  toolbarLayersButton?.addEventListener("click", toggleLayersPanel);
+  toolbarDesignButton?.addEventListener("click", onToolbarDesignClick);
   layersToggle?.addEventListener("click", toggleLayersPanel);
   layersCollapse?.addEventListener("click", toggleLayersPanel);
   designToggle?.addEventListener("click", toggleDesignPanel);
@@ -4378,17 +4911,23 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
   formatAlignCenter?.addEventListener("click", () => setPreviewStyle("text-align", "center"));
   formatAlignRight?.addEventListener("click", () => setPreviewStyle("text-align", "right"));
   document.addEventListener("pointerdown", onCommentPointerDown, true);
-  historyButton?.addEventListener("click", openHistory);
+  historyButton?.addEventListener("click", onHistoryButtonClick);
+  contextHistoryButton?.addEventListener("click", onElementHistoryButtonClick);
+  contextMoreButton?.addEventListener("click", (event) => { event.stopPropagation(); toggleContextMoreMenu(); });
   moreButton?.addEventListener("click", (event) => { event.stopPropagation(); toggleMoreMenu(); });
   moreMenuEl?.addEventListener("click", (event) => {
     const action = event.target?.closest?.("[data-reframe-more-action]")?.dataset?.reframeMoreAction;
-    if (action === "generate") { closeMoreMenu(); void generateEdit(); }
-    if (action === "history") { closeMoreMenu(); openHistory(); }
     if (action === "comments") { closeMoreMenu(); openComments(); }
+    if (action === "annotations") { closeMoreMenu(); toggleAnnotationsVisible(); }
     if (action === "heatmap") { closeMoreMenu(); toggleHeatmap(); }
-    if (action === "reference") { closeMoreMenu(); openReference(); }
     if (action === "paste-figma") { closeMoreMenu(); void triggerPasteFromFigma(); }
     if (action === "test") { closeMoreMenu(); test(); }
+  });
+  contextMoreMenuEl?.addEventListener("click", (event) => {
+    const action = event.target?.closest?.("[data-reframe-context-more-action]")?.dataset?.reframeContextMoreAction;
+    if (action === "apply") { closeContextMoreMenu(); applyProposal(); }
+    if (action === "deselect") { closeContextMoreMenu(); cancelSelection(); }
+    if (action === "reference") { closeContextMoreMenu(); openReference(); }
   });
   chromeHitZone?.addEventListener("pointerenter", onChromePointerEnter);
   chromeHitZone?.addEventListener("pointermove", onChromePointerEnter);
@@ -4426,13 +4965,350 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
   time?.addEventListener("keydown", onKeyDown);
   time?.addEventListener("keyup", onTimeKeyUp);
   historyClose?.addEventListener("click", closeHistory);
+  elementHistoryClose?.addEventListener("click", closeElementHistory);
   annotationClose?.addEventListener("click", closeAnnotations);
   annotationForm?.addEventListener("submit", onAnnotationSubmit);
   addEventListener("blur", cancelTimeMachine);
   document.addEventListener("visibilitychange", cancelTimeMachine);
   addEventListener("pagehide", teardown, { once: true });
   addEventListener("pageshow", () => { if (!disposed && state === "connected") { requestHistory(); scheduleHistoryRetry(); } });
-  window[key] = { session, tabId, host, teardown, previewWidth, clearSelection, restorePrevious, requestHistory, showPrevious: () => startTimeHold(), hidePrevious: () => endTimeHold(), openComments, openCommentsList, openReference, requestAnnotations, performanceMetrics, get referenceState() { return { draft: referenceDraft, frozenPlanId: frozenReferencePlanId, open: !referenceDialog?.hidden }; }, get annotationState() { return { ...annotationState }; }, get annotationsVisible() { return annotationsVisible; }, get historyState() { return { ...historyState }; }, get timeMachineState() { return { holding: Boolean(timeHold), overlayVisible: !timeOverlay?.hidden, historyOpen: !historyDialog?.hidden, cacheSize: screenshotCache.size }; }, get state() { return state; }, get selectMode() { return selectMode; }, get commentMode() { return commentMode; }, get activeTool() { return activeTool; }, get canvasZoom() { return canvasZoom; }, get generation() { return generation; }, get selection() { return active ? { selectionId: active.selectionId, proposalId: active.proposalId, generation: active.generation, width: active.previewWidth, mappingConfidence: active.mappingConfidence, label: labelFor(active.element) } : null; }, get connectionId() { return connectionId; }, get socket() { return socket; } };
+  const showcaseDelay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const SHOWCASE_PANEL_MS = 520;
+  let showcaseEpoch = 0;
+  const showcaseHistoryIso = (ms) => new Date(ms).toISOString();
+  const seedShowcaseHistory = () => {
+    const now = Date.now();
+    const vp = { width: innerWidth, height: innerHeight };
+    const path = route();
+    historyState.checkpoints = [
+      { id: "4c81e2a", parentId: null, createdAt: showcaseHistoryIso(now - 1800000), valid: true, promptSummary: "Resize Start building CTA", verification: "passed", route: path, kind: "edit", files: ["demo/style.css"], viewport: vp },
+      { id: "8f3b1d6", parentId: "4c81e2a", createdAt: showcaseHistoryIso(now - 900000), valid: true, promptSummary: "Adjust CTA fill and corners", verification: "passed", route: path, kind: "edit", files: ["demo/style.css"], viewport: vp },
+      { id: "d72a9f4", parentId: "8f3b1d6", createdAt: showcaseHistoryIso(now - 15000), valid: true, promptSummary: "Codex: add CTA spacing and shadow", verification: "passed", route: path, kind: "ai", files: ["demo/style.css"], viewport: vp },
+    ];
+    historyState.currentId = "d72a9f4";
+    historyState.previousId = "8f3b1d6";
+    historyState.canRestore = true;
+    historyState.visualComplete = true;
+    renderHistory();
+  };
+  const showcaseRectFor = () => {
+    if (!showcaseTarget) return null;
+    return showcaseTarget.getBoundingClientRect();
+  };
+  const showcaseAnnotationId = "showcase-cta-note";
+  const showcasePlaceSelection = () => {
+    const rect = showcaseRectFor();
+    if (!rect || !selectedOutline) return;
+    placeOutline(selectedOutline, rect);
+    placeContextBar(rect, selectedOutline);
+  };
+  const showcaseClearSelection = () => {
+    showcaseUiActive = false;
+    showcaseTarget = undefined;
+    if (selectedOutline) selectedOutline.hidden = true;
+    if (contextBar) contextBar.hidden = true;
+    if (panel) panel.hidden = true;
+    syncEditToolbar();
+  };
+  const showcaseShowSelection = async (selector, tag = "demo/style.css:75") => {
+    const el = document.querySelector(selector);
+    if (!el) return;
+    showcaseUiActive = true;
+    showcaseTarget = el;
+    if (commentMode) exitCommentMode();
+    activeTool = "select";
+    selectMode = true;
+    syncToolUi();
+    if (selectedLabel) selectedLabel.textContent = tag;
+    if (selectedOutline) selectedOutline.hidden = false;
+    if (mappingLabel) mappingLabel.textContent = "exact";
+    if (panel) panel.hidden = false;
+    if (contextBar) contextBar.hidden = false;
+    revealLayerPath(el);
+    syncEditToolbar();
+    showcasePlaceSelection();
+    scheduleLayersTree();
+    await showcaseDelay(520);
+  };
+  const initShowcaseUi = () => {
+    setState("connected");
+    connectionId = "showcase-ui";
+    chromeVisible = false;
+    toolbarCollapsed = false;
+    syncToolbarCollapsed();
+    syncChromeVisibility();
+    seedShowcaseHistory();
+    renderLayersTree();
+  };
+  const hideShowcaseOverlays = () => {
+    closeAnnotations();
+    annotationState.annotations = annotationState.annotations.filter((item) => item.id !== showcaseAnnotationId);
+    scheduleAnnotations();
+    mappingLabel?.classList.remove("showcase-pulse");
+    if (commentMode) exitCommentMode();
+  };
+  const showcaseAnimateCloseEl = async (el) => {
+    if (!el || el.hidden) return;
+    const epoch = showcaseEpoch;
+    el.classList.add("showcase-panel-closing");
+    await showcaseDelay(SHOWCASE_PANEL_MS);
+    if (epoch !== showcaseEpoch) { el.classList.remove("showcase-panel-closing"); return; }
+    el.hidden = true;
+    el.classList.remove("showcase-panel-closing");
+  };
+  const showcaseAnimateOpenEl = async (el) => {
+    if (!el || !el.hidden) return;
+    el.classList.add("showcase-panel-closing");
+    el.hidden = false;
+    requestAnimationFrame(() => { el.classList.remove("showcase-panel-closing"); });
+    await showcaseDelay(SHOWCASE_PANEL_MS);
+  };
+  const showcaseCloseLayersPanel = async () => {
+    if (!layersPanelVisible) return;
+    layersPanelVisible = false;
+    syncToolUi();
+    await showcaseAnimateCloseEl(layersPanel);
+  };
+  const showcaseOpenLayersPanel = async () => {
+    if (layersPanelVisible) return;
+    layersPanelVisible = true;
+    syncToolUi();
+    scheduleLayersTree();
+    await showcaseAnimateOpenEl(layersPanel);
+  };
+  const showcaseCloseDesignPanel = async () => {
+    if (!designPanelVisible) return;
+    designPanelVisible = false;
+    syncEditToolbar();
+    syncToolUi();
+    scheduleGeometry();
+    await showcaseAnimateCloseEl(designPanel);
+  };
+  const showcaseOpenDesignPanel = async () => {
+    if (designPanelVisible) return;
+    closeExclusivePanels("design");
+    designPanelVisible = true;
+    syncEditToolbar();
+    syncToolUi();
+    scheduleGeometry();
+    await showcaseAnimateOpenEl(designPanel);
+  };
+  const showcaseCloseAiPanel = async () => {
+    if (!aiPanel || aiPanel.hidden) return;
+    closeCodexChatMenu();
+    closeReferencePickers();
+    await showcaseAnimateCloseEl(aiPanel);
+    reference?.setAttribute("aria-expanded", "false");
+    scheduleGeometry();
+  };
+  const showcaseOpenAiPanel = async (epoch = showcaseEpoch) => {
+    if (epoch !== showcaseEpoch || !aiPanel || !aiPanel.hidden) return;
+    closeExclusivePanels("ai");
+    if (epoch !== showcaseEpoch) return;
+    await showcaseAnimateOpenEl(aiPanel);
+    reference?.setAttribute("aria-expanded", "false");
+    scheduleGeometry();
+  };
+  const showcaseCloseHistoryPanel = async () => {
+    if (!historyDialog || historyDialog.hidden) return;
+    await showcaseAnimateCloseEl(historyDialog);
+    historyButton?.setAttribute("aria-expanded", "false");
+    historyFocus = undefined;
+  };
+  const showcaseOpenHistoryPanel = async () => {
+    if (!historyDialog) return;
+    closeExclusivePanels("history");
+    renderHistoryList();
+    await showcaseAnimateOpenEl(historyDialog);
+    historyButton?.setAttribute("aria-expanded", "true");
+  };
+  const showcaseSceneCloseMap = {
+    2: ["design", "ai", "history", "comments"],
+    3: ["design", "ai", "history", "comments", "layers"],
+    4: ["ai", "history", "comments", "layers"],
+    5: ["design", "history", "comments", "layers"],
+    6: ["design", "ai", "history", "comments", "layers"],
+    7: ["design", "ai", "history", "layers", "comments"],
+    8: ["design", "ai", "history", "layers", "comments"],
+    9: ["design", "ai", "comments", "layers"],
+  };
+  const showcaseClosePanelKey = async (key) => {
+    if (key === "design") await showcaseCloseDesignPanel();
+    else if (key === "ai") await showcaseCloseAiPanel();
+    else if (key === "history") await showcaseCloseHistoryPanel();
+    else if (key === "layers") await showcaseCloseLayersPanel();
+    else if (key === "comments") hideShowcaseOverlays();
+  };
+  const showcase = showcaseMode ? {
+    revealChrome: async () => { showChrome(); await showcaseDelay(560); },
+    openLayers: async () => { await showcaseOpenLayersPanel(); await showcaseDelay(120); },
+    select: showcaseShowSelection,
+    resize: async (delta = 64) => {
+      const epoch = showcaseEpoch;
+      if (!showcaseTarget) return;
+      showcaseTarget.style.removeProperty("width");
+      const base = showcaseTarget.getBoundingClientRect();
+      const steps = 18;
+      for (let i = 1; i <= steps; i++) {
+        if (epoch !== showcaseEpoch) return;
+        const width = base.width + (delta * i) / steps;
+        showcaseTarget.style.width = width + "px";
+        if (layoutWidth) layoutWidth.value = String(Math.round(width));
+        showcasePlaceSelection();
+        await showcaseDelay(40);
+      }
+    },
+    openDesign: async () => {
+      if (!showcaseUiActive) await showcaseShowSelection("#rf-cta");
+      await showcaseOpenDesignPanel();
+      await showcaseDelay(120);
+    },
+    fillColor: async (hex = "#6d28d9") => {
+      if (!showcaseUiActive) await showcaseShowSelection("#rf-cta");
+      if (designFill) designFill.value = hex;
+      if (designFillHex) designFillHex.value = hex;
+      await showcaseDelay(380);
+    },
+    setRoundedCorners: async () => {
+      const el = showcaseTarget || document.querySelector("#rf-cta");
+      if (el) {
+        el.style.borderRadius = "20px";
+        el.style.boxShadow = "0 10px 28px rgba(124, 58, 237, 0.35)";
+      }
+      if (layoutRadius) layoutRadius.value = "20";
+      await showcaseDelay(420);
+    },
+    typeGenerate: async (text = "Give this CTA more spacing and a soft shadow") => {
+      const epoch = showcaseEpoch;
+      if (!showcaseUiActive) await showcaseShowSelection("#rf-cta");
+      await showcaseOpenAiPanel(epoch);
+      if (epoch !== showcaseEpoch) return;
+      if (aiPrompt) {
+        aiPrompt.value = "";
+        for (const ch of text) {
+          if (epoch !== showcaseEpoch) return;
+          aiPrompt.value += ch;
+          await showcaseDelay(28);
+        }
+      }
+      if (aiStatus) aiStatus.textContent = "Context ready · Button · demo/style.css:75 · Design DNA attached";
+      await showcaseDelay(760);
+    },
+    showReview: async () => {
+      const epoch = showcaseEpoch;
+      await showcaseOpenAiPanel(epoch);
+      if (epoch !== showcaseEpoch) return;
+      clearAiAttachedImage();
+      if (aiPrompt) aiPrompt.value = "Give this CTA more spacing and a soft shadow";
+      if (aiStatus) aiStatus.textContent = "Ready to review · demo/style.css · CTA spacing and shadow";
+      for (const button of [aiAccept, aiRefine, aiCompare, aiReject]) {
+        if (button) { button.hidden = false; button.disabled = false; }
+      }
+      if (aiGenerate) aiGenerate.hidden = true;
+      const scroll = aiPanel?.querySelector(".ai-panel-scroll");
+      if (scroll) scroll.scrollTop = scroll.scrollHeight;
+      await showcaseDelay(520);
+    },
+    approveReview: async () => {
+      await showcaseCloseAiPanel();
+      clearAiReview();
+      explain("Codex proposal accepted · writing source next");
+    },
+    hotReload: async () => {
+      await showcaseCloseAiPanel();
+      clearAiReview();
+      const el = document.querySelector("#rf-cta");
+      if (showcaseTarget !== el) await showcaseShowSelection("#rf-cta", "demo/style.css:75");
+      if (el) {
+        el.style.borderRadius = "20px";
+        el.style.boxShadow = "0 8px 24px rgba(124, 58, 237, 0.35)";
+      }
+      if (layoutRadius) layoutRadius.value = "20";
+      if (showcaseUiActive) showcasePlaceSelection();
+      explain("Saved to demo/style.css · hot reload verified");
+      await showcaseDelay(520);
+    },
+    openComments: async () => {
+      const epoch = showcaseEpoch;
+      if (!chromeVisible) showChrome();
+      const selectionReady = showcaseShowSelection("#rf-cta", "demo/style.css:75");
+      if (epoch !== showcaseEpoch) return;
+      await selectionReady;
+      if (epoch !== showcaseEpoch) return;
+      const el = document.querySelector("#rf-cta");
+      if (!el) return;
+      const note = {
+        id: showcaseAnnotationId,
+        author: "Local reviewer",
+        component: "Primary CTA",
+        createdAt: new Date().toISOString(),
+        status: "open",
+        route: route(),
+        resolution: "exact",
+        checkpointRelationship: "current",
+        fingerprint: fingerprint(el),
+        source: { path: "demo/style.css", line: 75 },
+        comment: "Check the CTA contrast before release",
+        highlight: { x: 0, y: 0, width: 1, height: 1 },
+      };
+      annotationState = { annotations: [note], issues: [], parsedFiles: 1, renderedForRoute: 1 };
+      annotationsVisible = true;
+      syncAnnotationsToggle();
+      showcaseClearSelection();
+      scheduleAnnotations();
+      openAnnotations(false);
+      explain("Annotation is anchored to demo/style.css:75 and ready to share through Git");
+      await showcaseDelay(580);
+    },
+    openHistory: async () => {
+      const epoch = showcaseEpoch;
+      if (!showcaseUiActive) await showcaseShowSelection("#rf-cta");
+      if (epoch !== showcaseEpoch) return;
+      seedShowcaseHistory();
+      await showcaseOpenHistoryPanel();
+      await showcaseDelay(120);
+    },
+    closeExclusiveForScene: async (scene) => {
+      showcaseEpoch += 1;
+      const epoch = showcaseEpoch;
+      explain("");
+      const keys = showcaseSceneCloseMap[scene] || [];
+      await Promise.all(keys.map(showcaseClosePanelKey));
+      if (epoch !== showcaseEpoch) return;
+      await showcaseDelay(140);
+    },
+    closeAllPanels: async () => {
+      await showcaseCloseDesignPanel();
+      await showcaseCloseAiPanel();
+      await showcaseCloseHistoryPanel();
+      await showcaseCloseLayersPanel();
+      hideShowcaseOverlays();
+      await showcaseDelay(140);
+    },
+    seedHistory: async () => { seedShowcaseHistory(); await showcaseDelay(80); },
+    reset: async () => {
+      showcaseEpoch += 1;
+      clearAiReview();
+      hideShowcaseOverlays();
+      showcaseClearSelection();
+      closeHistory();
+      closeAnnotations();
+      closeAiPanel();
+      hideDesignPanel();
+      if (layersPanelVisible) toggleLayersPanel();
+      chromeVisible = false;
+      syncChromeVisibility();
+      const cta = document.querySelector("#rf-cta");
+      if (cta instanceof HTMLElement) {
+        cta.style.borderRadius = "";
+        cta.style.boxShadow = "";
+        cta.style.removeProperty("width");
+        cta.style.removeProperty("background");
+      }
+      await showcaseDelay(220);
+    },
+  } : undefined;
+  window[key] = { session, tabId, host, teardown, previewWidth, clearSelection, restorePrevious, restoreCheckpoint, requestHistory, showPrevious: () => startTimeHold(), hidePrevious: () => endTimeHold(), openComments, openCommentsList, openReference, openHistory, openElementHistory, requestAnnotations, performanceMetrics, showcase, get referenceState() { return { draft: referenceDraft, frozenPlanId: frozenReferencePlanId, open: Boolean(referenceDialog?.open) || !aiPanel?.hidden }; }, get annotationState() { return { ...annotationState }; }, get annotationsVisible() { return annotationsVisible; }, get historyState() { return { ...historyState }; }, get timeMachineState() { return { holding: Boolean(timeHold), overlayVisible: !timeOverlay?.hidden, historyOpen: !historyDialog?.hidden, elementHistoryOpen: !elementHistoryDialog?.hidden, cacheSize: screenshotCache.size }; }, get state() { return state; }, get selectMode() { return selectMode; }, get commentMode() { return commentMode; }, get activeTool() { return activeTool; }, get canvasZoom() { return canvasZoom; }, get generation() { return generation; }, get selection() { return active ? { selectionId: active.selectionId, proposalId: active.proposalId, generation: active.generation, width: active.previewWidth, mappingConfidence: active.mappingConfidence, label: labelFor(active.element) } : null; }, get connectionId() { return connectionId; }, get socket() { return socket; } };
   document.documentElement.append(host);
   applyPageOffset();
   syncAnnotationsToggle();
@@ -4440,10 +5316,12 @@ export const BROWSER_CLIENT_SOURCE = String.raw`(() => {
   syncToolbarCollapsed();
   syncMinimalUi();
   syncChromeVisibility();
-  activeTool = "hand";
-  selectMode = false;
+  syncGenerateButton();
+  activeTool = "select";
+  selectMode = true;
   syncToolUi();
+  if (!showcaseMode) explain("Click an element to select · V select · H pan");
   renderLayersTree();
-  void loadAnnoints();
-  connect();
+  if (showcaseMode) initShowcaseUi();
+  else { void loadAnnoints(); connect(); }
 })();`;

@@ -1,4 +1,4 @@
-import { REFRAME_MAX_MESSAGE_BYTES, REFRAME_PROTOCOL_NAME, REFRAME_PROTOCOL_VERSION, validateClientMessage, type AiActionMessage, type AiGenerateMessage, type AnnotationActionMessage, type AnnotationCreateMessage, type AnnotationListMessage, type AnnotationStateMessage, type ClientMessage, type EditApplyMessage, type EditVerificationMessage, type HistoryRequestMessage, type HistoryStateMessage, type MappingRequestMessage, type ProtocolErrorCode, type ServerErrorMessage, type ServerMessage, type ServerReadyMessage } from "@reframe/shared";
+import { REFRAME_MAX_MESSAGE_BYTES, REFRAME_PROTOCOL_NAME, REFRAME_PROTOCOL_VERSION, validateClientMessage, type AiActionMessage, type AiGenerateMessage, type AnnotationActionMessage, type AnnotationCreateMessage, type AnnotationListMessage, type AnnotationStateMessage, type ClientMessage, type EditApplyMessage, type EditVerificationMessage, type HistoryRequestMessage, type HistoryRestoreMessage, type HistoryStateMessage, type MappingRequestMessage, type ProtocolErrorCode, type ServerErrorMessage, type ServerMessage, type ServerReadyMessage } from "@reframe/shared";
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import type { IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
@@ -36,7 +36,7 @@ export interface ReframeConnectionOptions {
   readonly onMappingRequest?: (request: Readonly<MappingRequestMessage>) => MappingResponse | Promise<MappingResponse>;
   readonly onEditProposal?: (proposal: Readonly<EditApplyMessage>, verifyInBrowser: (width: number, recovery?: boolean, height?: number) => Promise<boolean>) => EditProposalResponse | void | Promise<EditProposalResponse | void>;
   readonly onHistoryState?: (request: Readonly<HistoryRequestMessage>) => HistoryStateResponse | Promise<HistoryStateResponse>;
-  readonly onHistoryRestore?: () => HistoryRestoreResponse | Promise<HistoryRestoreResponse>;
+  readonly onHistoryRestore?: (message: Readonly<HistoryRestoreMessage>) => HistoryRestoreResponse | Promise<HistoryRestoreResponse>;
   readonly onAiGenerate?: (message: Readonly<AiGenerateMessage>, mapping: Readonly<MappingRequestMessage>, result: Readonly<MappingResponse>) => AiStateResponse | Promise<AiStateResponse>;
   readonly onAiAction?: (message: Readonly<AiActionMessage>) => AiStateResponse | Promise<AiStateResponse>;
   readonly onAnnotationList?: (message: Readonly<AnnotationListMessage>) => AnnotationStateResponse | Promise<AnnotationStateResponse>;
@@ -398,7 +398,7 @@ export function createReframeConnectionServer(options: ReframeConnectionOptions)
       }
     } else if (message.type === "history:restore") {
       try {
-        const restored = await options.onHistoryRestore?.();
+        const restored = await options.onHistoryRestore?.(message);
         if (!restored) throw new Error("HISTORY_UNAVAILABLE");
         peer.send({ type: "history:result", protocol: REFRAME_PROTOCOL_VERSION, correlationId: message.correlationId, sessionId: options.sessionId, status: "applied", code: "RESTORE_APPLIED", currentId: restored.currentId });
       } catch (error) {
@@ -419,7 +419,7 @@ export function createReframeConnectionServer(options: ReframeConnectionOptions)
         return;
       }
       acceptedProposals += 1;
-      peer.send({ type: "edit:accepted", protocol: REFRAME_PROTOCOL_VERSION, correlationId: message.correlationId, sessionId: options.sessionId, selectionId: message.selectionId, proposalId: message.proposalId, tabId: message.tabId, generation: message.generation, checkpointId: outcome?.checkpointId, visualComplete: outcome?.visualComplete });
+      peer.send({ type: "edit:accepted", protocol: REFRAME_PROTOCOL_VERSION, correlationId: message.correlationId, sessionId: options.sessionId, selectionId: message.selectionId, proposalId: message.proposalId, tabId: message.tabId, generation: message.generation, checkpointId: outcome?.checkpointId, visualComplete: outcome?.visualComplete, code: outcome?.code });
     }
   }
 

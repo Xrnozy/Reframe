@@ -45,7 +45,7 @@ Most UI tools fall into two camps: **design canvases** that never touch your rep
 | No browser extension required | N/A | Varies | **Yes** — local proxy injection |
 | Requires your codebase | No | No | **Yes** — by design |
 
-**Framework honesty:** Reframe fully supports source writes for React + Vite, React + Vite + TypeScript, vanilla HTML/CSS, and Laravel (Vite assets; Blade read-only). Next.js, Nuxt, Vue, Svelte, Angular, and Astro are **preview-only** today — you can inspect, explore, and use visual history, but source writes are not yet reliable for those stacks.
+**Framework honesty:** Reframe supports source writes for Vanilla HTML/CSS, Vite, React + Vite, React + TypeScript, Laravel Blade/Vite assets, and Next.js. Nuxt, Vue, Svelte, Angular, and Astro are **preview-only** today — you can inspect, explore, and use visual history, but source writes are not yet reliable for those stacks.
 
 ---
 
@@ -109,8 +109,9 @@ Reframe auto-detects the project from `package.json`, config files, and director
 | React + Vite | Yes |
 | React + Vite + TypeScript | Yes |
 | Vanilla HTML/CSS | Yes |
-| Laravel (Vite assets) | Yes (Blade read-only) |
-| Next.js, Nuxt, Angular, Astro, Vue, Svelte, SvelteKit | Preview only |
+| Laravel Blade + Vite assets | Yes |
+| Next.js | Yes |
+| Nuxt, Angular, Astro, Vue, Svelte, SvelteKit | Preview only |
 
 Override detection with `--framework` when needed.
 
@@ -178,7 +179,20 @@ npm install
 npx reframe
 ```
 
-Other demos: `demo/vanilla-demo` (plain HTML/CSS), `demo/react-tailwind-demo` (React + Tailwind).
+| Demo | Framework | Source writes |
+| --- | --- | --- |
+| `demo/react-demo` | React + Vite | Yes |
+| `demo/react-tailwind-demo` | React + Vite + Tailwind | Yes |
+| `demo/vanilla-demo` | Vanilla HTML/CSS | Yes |
+| `demo/vue-demo` | Vue 3 + Vite | Preview only |
+| `demo/next-demo` | Next.js App Router | Preview only |
+| `demo/svelte-demo` | Svelte + Vite | Preview only |
+
+```bash
+cd demo/vue-demo && npx reframe    # preview-only
+cd demo/next-demo && npx reframe   # preview-only
+cd demo/svelte-demo && npx reframe # preview-only
+```
 
 ---
 

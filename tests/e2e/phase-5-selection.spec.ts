@@ -57,7 +57,7 @@ async function ready(page: Page, url: string): Promise<void> {
 }
 
 async function selectElement(page: Page, selector: string): Promise<void> {
-  const button = page.locator("#reframe-root [data-reframe-select]");
+  const button = page.locator('#reframe-root [data-reframe-tool="select"]');
   if (await button.getAttribute("aria-pressed") !== "true") await button.click();
   await page.locator(selector).click();
   await expect(page.locator("#reframe-root [data-reframe-selected]")).toBeVisible();
@@ -199,7 +199,7 @@ test("P5-09 removing the selected node during drag cancels safely and leaves the
   await page.locator("#card-annual").evaluate((element) => element.remove());
   await page.mouse.up();
   await expect(page.locator("#reframe-root [data-reframe-selected]")).toBeHidden();
-  await page.locator("#reframe-root [data-reframe-select]").click();
+  await page.locator('#reframe-root [data-reframe-tool="select"]').click();
   await page.locator("#native-button").click();
   await expect(page.locator("#native-button")).toHaveAttribute("data-clicked", "yes");
 });
@@ -276,7 +276,7 @@ test("P5-14 hard refresh discards the active preview with no saved marker", asyn
 test("P5-15 Chromium hover, select, resize, and cancel behavior is equivalent baseline", async ({ page, browserName }) => {
   const url = await start();
   await ready(page, url);
-  await page.locator("#reframe-root [data-reframe-select]").click();
+  await page.locator('#reframe-root [data-reframe-tool="select"]').click();
   await page.locator("#card-annual").hover();
   await expect(page.locator("#reframe-root [data-reframe-hover]")).toBeVisible();
   await page.locator("#card-annual").click();
@@ -291,7 +291,7 @@ test("P5-17 toolbar offset and vertical resize handle are available during selec
   await ready(page, url);
   await expect.poll(() => page.evaluate(() => getComputedStyle(document.documentElement).paddingTop)).toBe("0px");
   await selectElement(page, "#card-annual");
-  await expect(page.locator("#reframe-root [data-reframe-context]")).toBeVisible();
+  await expect(page.locator("#reframe-root [data-reframe-generate]")).toBeVisible();
   await expect(page.locator("#reframe-root [data-reframe-handle-height]")).toBeVisible();
   const box = await page.locator("#reframe-root [data-reframe-handle-height]").boundingBox();
   if (!box) throw new Error("height resize handle is not visible");

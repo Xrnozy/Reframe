@@ -1,7 +1,7 @@
 import { BROWSER_CLIENT_SOURCE } from "@reframe/browser-client";
 import type { EditApplyMessage, MappingRequestMessage, ProtocolErrorCode } from "@reframe/shared";
 import { randomBytes } from "node:crypto";
-import { readdir, readFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { createServer, request as httpRequest, type IncomingHttpHeaders, type OutgoingHttpHeaders, type Server } from "node:http";
 import type { Duplex } from "node:stream";
@@ -10,7 +10,7 @@ import { createReframeConnectionServer, type ConnectionDiagnostics, type EditPro
 import { createSourceEditor, injectVanillaSourceMetadata, type EditPlan } from "./source-editor.js";
 import { createHistoryStore, type HistoryStoreOptions } from "./history.js";
 import { createAiEditRunner, type AiProvider, type ReviewState } from "./ai-edit.js";
-import { readDesignDna, selectDesignDnaContext } from "./design-dna.js";
+import { readDesignDna, designDnaReferencePath, selectDesignDnaContext } from "./design-dna.js";
 import { createAnnotationStore, type AnnotationState } from "./annotations.js";
 import { createAnnointStore, isAnnointId } from "./annoints.js";
 import { createDraftStore } from "./drafts.js";
@@ -57,6 +57,7 @@ export interface ProjectProxyOptions {
   onMappingRequest?: (request: Readonly<MappingRequestMessage>) => MappingResponse | Promise<MappingResponse>;
   onEditProposal?: (proposal: Readonly<EditApplyMessage>) => EditProposalResponse | void | Promise<EditProposalResponse | void>;
   project?: Partial<ReframeProjectConnectionInfo> & Pick<ReframeProjectConnectionInfo, "name" | "framework" | "capabilities">;
+  projectStyling?: "plain-css" | "css-modules" | "tailwind" | "unknown";
 }
 
 function transformBuffer(input: Buffer, transform: typeof gzip): Promise<Buffer> {
@@ -210,6 +211,7 @@ export function createProjectProxy(upstreamInput: string, options: ProjectProxyO
   const sourceEditor = options.projectRoot ? createSourceEditor({
     projectRoot: options.projectRoot,
     framework: project.framework,
+    styling: options.projectStyling,
     verificationTimeoutMs: options.verificationTimeoutMs,
     verify: verifyRoute,
     history,
@@ -257,7 +259,7 @@ export function createProjectProxy(upstreamInput: string, options: ProjectProxyO
       // #region agent log
       try { const { appendFile } = await import("node:fs/promises"); await appendFile("debug-591489.log", JSON.stringify({ sessionId: "591489", location: "proxy:onEditProposal", message: "applyEdit result", data: { status: result.status, code: result.code, checkpointId: result.checkpointId, width: proposal.width, height: proposal.height, hasText: Boolean(proposal.previewText) }, hypothesisId: "H5", timestamp: Date.now() }) + "\n"); } catch {}
       // #endregion
-      if (result.status === "applied" && history && !result.checkpointId && result.code !== "OVERRIDE_APPLIED") return { status: "rejected", code: "CHECKPOINT_MISSING", checkpointId: undefined, visualComplete: false };
+      if (result.status === "applied" && history && !result.checkpointId && result.code !== "OVERRIDE_APPLIED" && result.code !== "SOURCE_CLASS_PROMOTED") return { status: "rejected", code: "CHECKPOINT_MISSING", checkpointId: undefined, visualComplete: false };
       if (result.status === "applied") await options.onEditProposal?.(proposal);
       return { status: result.status, code: result.code, checkpointId: result.checkpointId, visualComplete: result.visualComplete };
     } : options.onEditProposal,
@@ -273,8 +275,8 @@ export function createProjectProxy(upstreamInput: string, options: ProjectProxyO
       const checkpoints = state.checkpoints.map(({ screenshots: _screenshots, ...checkpoint }) => ({ ...checkpoint, files: [...checkpoint.files].slice(0, 16), promptSummary: checkpoint.promptSummary?.slice(0, 160), error: checkpoint.error?.slice(0, 160) }));
       return { currentId: state.currentId, previousId: current?.parentId ?? null, canRestore: Boolean(state.currentId && current?.valid), visualComplete: current?.visualComplete ?? false, gitAvailable: state.gitAvailable, dirty: state.dirty, incomplete: state.incomplete, checkpoints, comparison };
     } : undefined,
-    onHistoryRestore: history ? async () => {
-      const result = await history.restorePrevious();
+    onHistoryRestore: history ? async (message) => {
+      const result = message.checkpointId ? await history.restoreToCheckpoint(message.checkpointId) : await history.restorePrevious();
       return { currentId: result.currentId };
     } : undefined,
     onAiGenerate: aiRunner ? async (message, mapping, result) => {
@@ -286,7 +288,17 @@ export function createProjectProxy(upstreamInput: string, options: ProjectProxyO
       const stylingMethod = /\.jsx$/i.test(candidate.path) ? "tailwind" : /\.module\.css$/i.test(candidate.path) ? "css-module" : project.framework === "react" ? "react-css" : "vanilla-css";
       const dna = await readDesignDna(options.projectRoot!).catch(() => undefined); const designDna = dna ? selectDesignDnaContext(dna, { sourcePath: candidate.path }) : undefined;
       const reference = message.referencePlanId ? references?.packet(message.referencePlanId) : undefined;
-      return aiState(await aiRunner.generate({ projectRoot: options.projectRoot!, fingerprint: mapping.fingerprint, sourcePath: candidate.path, framework: project.framework === "react" ? "react" : "vanilla", stylingMethod, instruction: message.instruction, classes: mapping.fingerprint.classes, screenshots: { selected: "excluded", surrounding: "excluded", fullPage: "excluded", blurredRegions: 0 }, generationId: message.generationId, conversationId: message.conversationId, designDna, reference, validateReferenceProposal: message.referencePlanId ? (values) => references!.copyGuard(message.referencePlanId!, values) : undefined }));
+      let imageAttachment: { id: string; mime: string; filename: string; base64: string } | undefined;
+      if (message.imageAttachmentId) {
+        const bytes = await readFile(path.join(options.projectRoot!, ".reframe", "ai-attachments", `${message.imageAttachmentId}.png`)).catch(() => undefined);
+        if (!bytes || bytes.length > 4 * 1024 * 1024) throw new Error("IMAGE_ATTACHMENT_INVALID");
+        imageAttachment = { id: message.imageAttachmentId, mime: "image/png", filename: `${message.imageAttachmentId}.png`, base64: bytes.toString("base64") };
+      }
+      const fileReferences: string[] = [];
+      if (reference?.plan.brand === "preserve" || (!reference && designDna)) {
+        try { await readFile(path.join(options.projectRoot!, designDnaReferencePath)); fileReferences.push(designDnaReferencePath); } catch { /* no persisted DNA file yet */ }
+      }
+      return aiState(await aiRunner.generate({ projectRoot: options.projectRoot!, fingerprint: mapping.fingerprint, sourcePath: candidate.path, framework: project.framework === "react" ? "react" : "vanilla", stylingMethod, instruction: message.instruction, classes: mapping.fingerprint.classes, screenshots: { selected: "excluded", surrounding: "excluded", fullPage: "excluded", blurredRegions: 0 }, generationId: message.generationId, conversationId: message.conversationId, designDna, reference, imageAttachment, fileReferences: fileReferences.length ? fileReferences : undefined, validateReferenceProposal: message.referencePlanId ? (values) => references!.copyGuard(message.referencePlanId!, values) : undefined }));
     } : undefined,
     onAiAction: aiRunner ? async (message) => {
       if (message.action === "accept") return aiState(await aiRunner.accept(message.generationId));
@@ -552,7 +564,28 @@ export function createProjectProxy(upstreamInput: string, options: ProjectProxyO
       }).catch((error) => { response.writeHead(500, { "Cache-Control": "no-store", "Content-Type": "application/json; charset=utf-8" }); response.end(JSON.stringify({ code: error instanceof Error ? error.message : String(error) })); });
       return;
     }
-    if (localRequest.pathname === aiComparisonPath || localRequest.pathname === `${aiComparisonPath}/pending`) {
+    if (localRequest.pathname === aiComparisonPath || localRequest.pathname === `${aiComparisonPath}/pending` || localRequest.pathname.startsWith(`${aiComparisonPath}/attachment/`)) {
+      if (localRequest.pathname.startsWith(`${aiComparisonPath}/attachment/`)) {
+        const requestOrigin = originOf(request.headers.referer) ?? originOf(request.headers.origin);
+        const rawId = localRequest.pathname.slice(`${aiComparisonPath}/attachment/`.length).split("/")[0]?.toLowerCase();
+        const allowed = request.headers.authorization === `Bearer ${token}` && requestOrigin === proxyOrigin && options.projectRoot && rawId && /^[a-z0-9_-]{1,128}$/i.test(rawId);
+        if (!allowed) { response.writeHead(403, { "Cache-Control": "no-store", "Content-Type": "application/json; charset=utf-8" }); response.end('{"code":"IMAGE_ATTACHMENT_AUTH_INVALID"}'); return; }
+        if (request.method === "PUT") {
+          void requestBody(request, 4 * 1024 * 1024).then(async (body) => {
+            if (!body.length || body.length > 4 * 1024 * 1024) throw new Error("IMAGE_ATTACHMENT_INVALID");
+            const folder = path.join(options.projectRoot!, ".reframe", "ai-attachments");
+            await mkdir(folder, { recursive: true });
+            await writeFile(path.join(folder, `${rawId}.png`), body);
+            const json = JSON.stringify({ id: rawId });
+            response.writeHead(200, { "Cache-Control": "no-store", "Content-Type": "application/json; charset=utf-8", "Content-Length": Buffer.byteLength(json), "X-Content-Type-Options": "nosniff" });
+            response.end(json);
+          }).catch((error) => { if (!response.headersSent) response.writeHead(400, { "Cache-Control": "no-store", "Content-Type": "application/json; charset=utf-8" }); response.end(JSON.stringify({ code: error instanceof Error ? error.message : String(error) })); });
+          return;
+        }
+        response.writeHead(405, { "Cache-Control": "no-store", "Content-Type": "application/json; charset=utf-8" });
+        response.end('{"code":"IMAGE_ATTACHMENT_METHOD_UNSUPPORTED"}');
+        return;
+      }
       const allowed = request.method === "GET" && request.headers.authorization === `Bearer ${token}` && originOf(request.headers.referer) === proxyOrigin && aiRunner;
       if (!allowed) { response.writeHead(403, { "Cache-Control": "no-store", "Content-Type": "text/plain; charset=utf-8" }); response.end("Forbidden"); return; }
       if (localRequest.pathname === `${aiComparisonPath}/pending`) {

@@ -103,6 +103,32 @@ export interface HistoryStoreOptions {
 
 const projectLocks = new Map<string, Promise<void>>();
 const allowedGitCommands = new Set(["rev-parse", "status", "diff"]);
+const readOnlyGitGlobalArgs = ["--no-optional-locks"] as const;
+const readOnlyGitConfigArgs = [
+  "-c", "credential.helper=",
+  "-c", "credential.interactive=never",
+  "-c", "credential.guiPrompt=false",
+  "-c", "core.askPass=",
+  "-c", "status.aheadBehind=false",
+  "-c", "submodule.recurse=false",
+] as const;
+const gitSnapshotTtlMs = 2_000;
+const gitCommandTimeoutMs = 5_000;
+
+export function readOnlyGitSpawnOptions(): { readonly globalArgs: readonly string[]; readonly configArgs: readonly string[]; readonly env: NodeJS.ProcessEnv } {
+  return {
+    globalArgs: readOnlyGitGlobalArgs,
+    configArgs: readOnlyGitConfigArgs,
+    env: {
+      ...process.env,
+      GIT_TERMINAL_PROMPT: "0",
+      GCM_INTERACTIVE: "0",
+      GCM_GUI_PROMPT: "0",
+      GIT_ASKPASS: "",
+      GIT_PAGER: "cat",
+    },
+  };
+}
 
 function sha256(value: Uint8Array | string): string { return createHash("sha256").update(value).digest("hex"); }
 function normalized(relativePath: string): string { return relativePath.split(path.sep).join("/"); }
@@ -129,10 +155,16 @@ function patch(files: readonly HistoryFileInput[], reverse: boolean): string {
 
 async function defaultGitRunner(args: readonly string[], cwd: string): Promise<{ code: number; stdout: string; stderr: string }> {
   if (!allowedGitCommands.has(args[0] ?? "")) throw new Error("GIT_COMMAND_FORBIDDEN");
+  const { globalArgs, configArgs, env } = readOnlyGitSpawnOptions();
   return new Promise((resolve) => {
-    execFile("git", [...args], { cwd, windowsHide: true, encoding: "utf8", maxBuffer: 4 * 1024 * 1024, env: { ...process.env, GIT_TERMINAL_PROMPT: "0", GIT_PAGER: "cat" } }, (error, stdout, stderr) => {
+    const child = execFile("git", [...globalArgs, ...configArgs, ...args], { cwd, windowsHide: true, encoding: "utf8", maxBuffer: 4 * 1024 * 1024, env }, (error, stdout, stderr) => {
+      clearTimeout(timeout);
       resolve({ code: typeof (error as NodeJS.ErrnoException | null)?.code === "number" ? (error as NodeJS.ErrnoException & { code: number }).code : error ? 1 : 0, stdout, stderr });
     });
+    const timeout = setTimeout(() => {
+      child.kill("SIGTERM");
+      resolve({ code: 1, stdout: "", stderr: "GIT_COMMAND_TIMEOUT" });
+    }, gitCommandTimeoutMs);
   });
 }
 
@@ -152,6 +184,9 @@ export function createHistoryStore(options: HistoryStoreOptions) {
   const gitAudit: string[][] = [];
   const screenshotTimeoutMs = options.screenshotTimeoutMs ?? 2_000;
   let unavailableRepository: GitSnapshot | undefined;
+  let cachedGitSnapshot: GitSnapshot | undefined;
+  let cachedGitSnapshotAt = 0;
+  let gitSnapshotInflight: Promise<GitSnapshot> | undefined;
 
   async function runGit(args: readonly string[]): Promise<{ code: number; stdout: string; stderr: string }> {
     if (!allowedGitCommands.has(args[0] ?? "")) throw new Error("GIT_COMMAND_FORBIDDEN");
@@ -159,17 +194,39 @@ export function createHistoryStore(options: HistoryStoreOptions) {
     return git(args, root);
   }
 
-  async function inspectGit(): Promise<GitSnapshot> {
+  function invalidateGitSnapshotCache(): void {
+    cachedGitSnapshot = undefined;
+    cachedGitSnapshotAt = 0;
+  }
+
+  async function loadGitSnapshot(): Promise<GitSnapshot> {
     if (unavailableRepository) return unavailableRepository;
     try {
       const repository = await runGit(["rev-parse", "--is-inside-work-tree"]);
       if (repository.code !== 0 || repository.stdout.trim() !== "true") return unavailableRepository = { available: false, head: null, entries: [], error: repository.stderr.trim() || "NOT_A_GIT_REPOSITORY" };
-      const [head, statusResult] = await Promise.all([runGit(["rev-parse", "HEAD"]), runGit(["status", "--porcelain=v1", "-z", "--untracked-files=all"])]);
+      const [head, statusResult] = await Promise.all([
+        runGit(["rev-parse", "--verify", "HEAD"]),
+        runGit(["status", "--porcelain=v1", "-z", "--untracked-files=all"]),
+      ]);
       const entries = statusResult.stdout.split("\0").filter(Boolean).sort();
       return { available: true, head: head.code === 0 ? head.stdout.trim() : null, entries };
     } catch (error) {
       return unavailableRepository = { available: false, head: null, entries: [], error: error instanceof Error ? error.message : String(error) };
     }
+  }
+
+  async function inspectGit(force = false): Promise<GitSnapshot> {
+    if (unavailableRepository) return unavailableRepository;
+    if (!force && cachedGitSnapshot && Date.now() - cachedGitSnapshotAt < gitSnapshotTtlMs) return cachedGitSnapshot;
+    if (!force && gitSnapshotInflight) return gitSnapshotInflight;
+    gitSnapshotInflight = loadGitSnapshot().then((snapshot) => {
+      cachedGitSnapshot = snapshot;
+      cachedGitSnapshotAt = Date.now();
+      return snapshot;
+    }).finally(() => {
+      gitSnapshotInflight = undefined;
+    });
+    return gitSnapshotInflight;
   }
 
   async function capture(stage: ScreenshotStage, context: Pick<CheckpointInput, "plan" | "request">, kind: ScreenshotKind): Promise<ScreenshotCapture> {
@@ -188,7 +245,8 @@ export function createHistoryStore(options: HistoryStoreOptions) {
   }
 
   async function prepareEdit(plan: EditPlan, request: WidthEditRequest): Promise<HistoryPreflight> {
-    const repository = await inspectGit();
+    invalidateGitSnapshotCache();
+    const repository = await inspectGit(true);
     const [page, component] = await Promise.all([capture("before", { plan, request }, "page"), capture("before", { plan, request }, "component")]);
     const beforeScreenshots = { page, component };
     if (!repository.available) return { repository, beforeScreenshots };
@@ -337,7 +395,13 @@ export function createHistoryStore(options: HistoryStoreOptions) {
     finally { release(); if (projectLocks.get(key) === chain) projectLocks.delete(key); }
   }
 
-  async function createCheckpoint(input: CheckpointInput): Promise<CheckpointMetadata> { return withLock(() => publish(input)); }
+  async function createCheckpoint(input: CheckpointInput): Promise<CheckpointMetadata> {
+    return withLock(async () => {
+      const metadata = await publish(input);
+      invalidateGitSnapshotCache();
+      return metadata;
+    });
+  }
 
   async function state(): Promise<HistoryState> {
     await ensureHistoryRoot();
@@ -372,6 +436,21 @@ export function createHistoryStore(options: HistoryStoreOptions) {
     catch (error) { await ops.rm(temporary, { force: true }).catch(() => undefined); throw error; }
   }
 
+  async function restoreToCheckpoint(targetId: string): Promise<{ restoredFrom: string; currentId: string | null; safetyId: string }> {
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(targetId)) throw new Error("CHECKPOINT_ID_INVALID");
+    let currentId = await readCurrent();
+    if (!currentId) throw new Error("NO_PREVIOUS_CHECKPOINT");
+    if (currentId === targetId) return restorePrevious();
+    const snapshot = await state();
+    const byId = new Map(snapshot.checkpoints.map((checkpoint) => [checkpoint.id, checkpoint]));
+    const ancestors = new Set<string>();
+    for (let walk: string | null = currentId; walk && byId.has(walk); walk = byId.get(walk)!.parentId) ancestors.add(walk);
+    if (!ancestors.has(targetId)) throw new Error("CHECKPOINT_NOT_REACHABLE");
+    let lastResult: { restoredFrom: string; currentId: string | null; safetyId: string };
+    while ((currentId = await readCurrent()) && currentId !== targetId) lastResult = await restorePrevious();
+    return lastResult!;
+  }
+
   async function restorePrevious(): Promise<{ restoredFrom: string; currentId: string | null; safetyId: string }> {
     return withLock(async () => {
       const currentId = await readCurrent();
@@ -384,7 +463,7 @@ export function createHistoryStore(options: HistoryStoreOptions) {
         files: currentFiles.map(({ file, bytes }) => ({ relativePath: file.path, beforeBytes: bytes, afterBytes: bytes, mode: file.mode, range: file.range })),
         request: { fingerprint: { tag: "body", id: null, classes: [], text: "", parent: null, route: metadata.edit.route, viewport: metadata.edit.viewport }, currentWidth: metadata.edit.afterWidth, width: metadata.edit.afterWidth },
         plan: { relativePath: metadata.files[0]!.path, range: metadata.files[0]!.range, sourceIdentity: `safety:${currentId}`, route: metadata.edit.route, expectedHash: metadata.files[0]!.afterHash, before: "", after: "", stylingMode: "vanilla-css", confidence: "exact", evidence: "Pre-restore safety checkpoint", impact: { shared: false, locations: metadata.files.map((file) => file.path) }, allowedChangedFiles: metadata.files.map((file) => file.path) },
-        preflight: { repository: await inspectGit(), beforeScreenshots: { page: { record: { status: "unavailable", error: "SAFETY_CHECKPOINT" } }, component: { record: { status: "unavailable", error: "SAFETY_CHECKPOINT" } } } }, verificationMs: 0,
+        preflight: { repository: await inspectGit(true), beforeScreenshots: { page: { record: { status: "unavailable", error: "SAFETY_CHECKPOINT" } }, component: { record: { status: "unavailable", error: "SAFETY_CHECKPOINT" } } } }, verificationMs: 0,
       };
       const safety = await publish(safetyInput, currentId);
       try {
@@ -392,6 +471,7 @@ export function createHistoryStore(options: HistoryStoreOptions) {
         if (options.verifyRestore && !await options.verifyRestore(metadata, false)) throw new Error("RESTORE_VERIFICATION_FAILED");
         await writeDurable(path.join(historyRoot, currentId, "restore.json"), `${JSON.stringify({ status: "passed", restoredAt: (options.now?.() ?? new Date()).toISOString(), safetyId: safety.id })}\n`);
         await writeCurrent(metadata.parentId);
+        invalidateGitSnapshotCache();
         return { restoredFrom: currentId, currentId: metadata.parentId, safetyId: safety.id };
       } catch (error) {
         let recovered = true;
@@ -406,5 +486,5 @@ export function createHistoryStore(options: HistoryStoreOptions) {
     });
   }
 
-  return { prepareEdit, createCheckpoint, state, readScreenshot, restorePrevious, gitAudit: () => gitAudit.map((args) => [...args]) };
+  return { prepareEdit, createCheckpoint, state, readScreenshot, restorePrevious, restoreToCheckpoint, gitAudit: () => gitAudit.map((args) => [...args]) };
 }

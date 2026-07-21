@@ -37,7 +37,7 @@ async function ready(page: Page, url: string): Promise<void> {
 }
 
 async function apply(page: Page, width: number): Promise<void> {
-  await page.locator("#reframe-root [data-reframe-select]").click();
+  await page.locator('#reframe-root [data-reframe-tool="select"]').click();
   await page.locator("#card-annual").click();
   await expect(page.locator("#reframe-root [data-reframe-mapping]")).toHaveText("exact");
   await page.evaluate((value) => window[Symbol.for("reframe.browser-client")].previewWidth(value), width);
@@ -111,7 +111,7 @@ test("SUP-P7-01 explicitly checkpoints an overlapping source change before savin
     await writeFile(css, (await readFile(css, "utf8")).replace(/(#pricing-grid #card-annual\s*\{[^}]*width:\s*)\d+px/, (_match, prefix: string) => `${prefix}496px`));
   });
   await ready(page, url);
-  await page.locator("#reframe-root [data-reframe-select]").click();
+  await page.locator('#reframe-root [data-reframe-tool="select"]').click();
   await page.locator("#card-annual").click();
   await expect(page.locator("#reframe-root [data-reframe-mapping]")).toHaveText("exact");
   await expect(page.locator("#reframe-root [data-reframe-overlap]")).toBeHidden();
@@ -137,7 +137,7 @@ test("SUP-P7-02 keeps save state coherent when the user clicks another element d
   const png = Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), Buffer.from("phase7-IEND-image")]);
   const url = await start(undefined, async (stage) => { if (stage === "after") await checkpointHeld; return png; });
   await ready(page, url);
-  await page.locator("#reframe-root [data-reframe-select]").click();
+  await page.locator('#reframe-root [data-reframe-tool="select"]').click();
   await page.locator("#card-annual").click();
   await expect(page.locator("#reframe-root [data-reframe-mapping]")).toHaveText("exact");
   await page.evaluate(() => window[Symbol.for("reframe.browser-client")].previewWidth(520));

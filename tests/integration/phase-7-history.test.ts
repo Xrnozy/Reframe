@@ -4,7 +4,7 @@ import { chmod, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "n
 import path from "node:path";
 import { promisify } from "node:util";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { createHistoryStore, createSourceEditor, type CheckpointInput, type EditPlan, type HistoryOperations, type WidthEditRequest } from "../../packages/dev-server/src/index.js";
+import { createHistoryStore, createSourceEditor, readOnlyGitSpawnOptions, type CheckpointInput, type EditPlan, type HistoryOperations, type WidthEditRequest } from "../../packages/dev-server/src/index.js";
 import { projectRoot } from "../helpers/paths.js";
 
 const exec = promisify(execFile);
@@ -232,6 +232,27 @@ describe("Phase 7 durable local history", () => {
     expect(commands.flat().some((value) => /push|fetch|pull|remote|add|commit|reset|merge|checkout/.test(value))).toBe(false);
   });
 
+  it("P7-13b disables interactive Git credential prompts for read-only inspection", () => {
+    const { globalArgs, configArgs, env } = readOnlyGitSpawnOptions();
+    expect(globalArgs).toContain("--no-optional-locks");
+    expect(configArgs).toContain("credential.interactive=never");
+    expect(configArgs).toContain("credential.helper=");
+    expect(configArgs).toContain("status.aheadBehind=false");
+    expect(env.GIT_TERMINAL_PROMPT).toBe("0");
+    expect(env.GCM_INTERACTIVE).toBe("0");
+    expect(env.GCM_GUI_PROMPT).toBe("0");
+    expect(env.GIT_ASKPASS).toBe("");
+  });
+
+  it("P7-13c reuses cached Git snapshots during frequent history state reads", async () => {
+    await initGit();
+    const { history } = await edit();
+    await history.state();
+    const afterFirst = history.gitAudit().length;
+    await Promise.all([history.state(), history.state(), history.state()]);
+    expect(history.gitAudit().length).toBe(afterFirst);
+  });
+
   it("P7-14 real Git diff removes only the Reframe edit after restore", async () => {
     await put("other.txt", "base\n");
     await initGit();
@@ -266,5 +287,20 @@ describe("Phase 7 durable local history", () => {
     expect(result.status).toBe("applied");
     await history.restorePrevious();
     expect(await readFile(path.join(root, "style.css"))).toEqual(before);
+  });
+
+  it("P7-17 restores to an earlier ancestor checkpoint", async () => {
+    const history = createHistoryStore({ projectRoot: root, captureScreenshot: async () => png });
+    const editor = createSourceEditor({ projectRoot: root, framework: "vanilla", history });
+    const first = await editor.applyWidth(request(420));
+    const second = await editor.applyWidth(request(430, 420));
+    const third = await editor.applyWidth(request(440, 430));
+    expect(first.status).toBe("applied");
+    expect(second.status).toBe("applied");
+    expect(third.status).toBe("applied");
+    expect(await readFile(path.join(root, "style.css"), "utf8")).toContain("440px");
+    await history.restoreToCheckpoint(first.checkpointId!);
+    expect(await readFile(path.join(root, "style.css"), "utf8")).toContain("420px");
+    expect((await history.state()).currentId).toBe(first.checkpointId);
   });
 });

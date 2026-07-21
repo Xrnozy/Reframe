@@ -2,7 +2,8 @@ import { createServer } from "node:http";
 import { mkdir, mkdtemp, readFile, readdir, rm, stat, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { createSourceEditor, injectReactViteSourceMetadata, resolveProjectPath, type EditPlan, type WidthEditRequest } from "../../packages/dev-server/src/index.js";
+import { createSourceEditor, injectReactViteSourceMetadata, promotedClassName, resolveProjectPath, type EditPlan, type WidthEditRequest } from "../../packages/dev-server/src/index.js";
+import { fingerprintHash } from "@reframe/shared";
 import { projectRoot } from "../helpers/paths.js";
 
 let root: string;
@@ -113,6 +114,28 @@ describe("Phase 6 source mapper and transaction", () => {
     const result = await createSourceEditor({ projectRoot: root, framework: "vanilla" }).applyWidth(request("card-annual", ["w-80"], 384));
     expect(result.status).toBe("applied");
     expect(await readFile(path.join(root, "resources/views/welcome.blade.php"), "utf8")).toContain('class="rounded w-96"');
+  });
+
+  it("SUP-P6-07c promotes unmapped Laravel Blade edits into the @vite CSS asset", async () => {
+    await put("resources/views/welcome.blade.php", '@vite(["resources/css/app.css", "resources/js/app.js"])\n<article class="card">Annual</article>');
+    await put("resources/css/app.css", ".card { padding: 24px; }\n");
+    const fp = { ...fingerprint(null, ["card"]), tag: "article", text: "Annual" };
+    const className = promotedClassName(fingerprintHash(fp));
+    const result = await createSourceEditor({ projectRoot: root, framework: "vanilla", styling: "plain-css" }).applyWidth({ fingerprint: fp, currentWidth: 280, width: 420 });
+    expect(result.code).toBe("SOURCE_CLASS_PROMOTED");
+    expect(await readFile(path.join(root, "resources/views/welcome.blade.php"), "utf8")).toContain(`class="card ${className}"`);
+    expect(await readFile(path.join(root, "resources/css/app.css"), "utf8")).toContain(`.${className} {\n  width: 420px;\n}`);
+  });
+
+  it("SUP-P6-07d promotes unmapped Next.js TSX edits into its sole global CSS file", async () => {
+    await put("app/page.tsx", 'export default function Page(): JSX.Element { return <article className="card">Annual</article>; }');
+    await put("app/globals.css", ".card { padding: 24px; }\n");
+    const fp = { ...fingerprint(null, ["card"]), tag: "article", text: "Annual" };
+    const className = promotedClassName(fingerprintHash(fp));
+    const result = await createSourceEditor({ projectRoot: root, framework: "react", styling: "plain-css" }).applyWidth({ fingerprint: fp, currentWidth: 280, width: 420 });
+    expect(result.code).toBe("SOURCE_CLASS_PROMOTED");
+    expect(await readFile(path.join(root, "app/page.tsx"), "utf8")).toContain(`className="card ${className}"`);
+    expect(await readFile(path.join(root, "app/globals.css"), "utf8")).toContain(`.${className} {\n  width: 420px;\n}`);
   });
 
   it("P6-08 uses one arbitrary Tailwind width when no exact utility exists", async () => {
@@ -292,6 +315,118 @@ describe("Phase 6 source mapper and transaction", () => {
     expect(result).toContain('"data-reframe-props":"id,name"');
     expect(injectReactViteSourceMetadata(result, source, "src/PricingCard.jsx")).toBe(result);
     expect(source).not.toContain("data-reframe");
+  });
+
+  it("SUP-P6-03 promotes unmapped width edits to style.css with an id selector", async () => {
+    await put("index.html", '<article id="orphan-card">Annual</article>');
+    const editor = createSourceEditor({ projectRoot: root, framework: "vanilla" });
+    const result = await editor.applyWidth(request("orphan-card", [], 420));
+    expect(result.status).toBe("applied");
+    expect(result.code).toBe("SOURCE_CLASS_PROMOTED");
+    const css = await readFile(path.join(root, "style.css"), "utf8");
+    expect(css).toContain("#orphan-card {");
+    expect(css).toContain("width: 420px;");
+    expect(await readFile(path.join(root, "index.html"), "utf8")).toContain('<link rel="stylesheet" href="style.css" />');
+    expect(await readFile(path.join(root, ".reframe", "overrides.css"), "utf8").catch(() => "")).not.toContain("420px");
+  });
+
+  it("SUP-P6-03b promotes unmapped class-based elements with a stable reframe-mapped class", async () => {
+    await put("index.html", '<div class="widget">Hello</div>');
+    await put("style.css", "body { margin: 0; }\n");
+    const editor = createSourceEditor({ projectRoot: root, framework: "vanilla" });
+    const fp = { ...fingerprint(null, ["widget"]), tag: "div" };
+    const className = promotedClassName(fingerprintHash(fp));
+    const result = await editor.applyWidth({ fingerprint: fp, currentWidth: 120, width: 240 });
+    expect(result.status).toBe("applied");
+    expect(result.code).toBe("SOURCE_CLASS_PROMOTED");
+    expect(await readFile(path.join(root, "style.css"), "utf8")).toContain(`.${className} {`);
+    expect(await readFile(path.join(root, "index.html"), "utf8")).toContain(`class="widget ${className}"`);
+  });
+
+  it("SUP-P6-04 promotes probable shared-style edits to source classes instead of overrides", async () => {
+    const source = '<style>\n.left-panel {\n  color: red;\n}\n.left-panel h2 { font-size: 14px; }\n</style>\n<div class="left-panel"><h2>Errors</h2></div>';
+    await put("index.html", source);
+    const editor = createSourceEditor({ projectRoot: root, framework: "vanilla" });
+    const blocked = await editor.mapWidth(request(null, ["left-panel"], 420));
+    expect(blocked.confidence).toBe("probable");
+    const result = await editor.applyWidth({ ...request(null, ["left-panel"], 420), fingerprint: { ...fingerprint(null, ["left-panel"]), tag: "div" } });
+    expect(result.status).toBe("applied");
+    expect(result.code).toBe("SOURCE_CLASS_PROMOTED");
+    const html = await readFile(path.join(root, "index.html"), "utf8");
+    expect(html).toContain("width: 420px;");
+    expect(html).toMatch(/class="left-panel reframe-mapped-[a-f0-9]{8}"/);
+    expect(await readFile(path.join(root, ".reframe", "overrides.css"), "utf8").catch(() => "")).not.toContain("420px");
+  });
+
+  it("SUP-P6-04b falls back to overrides when vanilla html target is not identifiable", async () => {
+    await put("index.html", '<div class="widget">One</div><div class="widget">Two</div>');
+    const editor = createSourceEditor({ projectRoot: root, framework: "vanilla" });
+    const result = await editor.applyWidth(request(null, ["widget"], 420));
+    expect(result.status).toBe("applied");
+    expect(result.code).toBe("OVERRIDE_APPLIED");
+    expect(await readFile(path.join(root, ".reframe", "overrides.css"), "utf8")).toContain("420px");
+  });
+
+  it("SUP-P6-05 promotes unmapped Tailwind width edits into JSX className utilities", async () => {
+    await put("tailwind.config.ts", "export default {};\n");
+    await put("src/App.tsx", 'export function App() { return <article id="card-annual" className="rounded-2xl border p-6">Annual</article>; }');
+    const editor = createSourceEditor({ projectRoot: root, framework: "react", styling: "tailwind" });
+    const result = await editor.applyWidth(request("card-annual", ["rounded-2xl", "border", "p-6"], 420));
+    expect(result.status).toBe("applied");
+    expect(result.code).toBe("SOURCE_CLASS_PROMOTED");
+    expect(await readFile(path.join(root, "src/App.tsx"), "utf8")).toContain('className="rounded-2xl border p-6 w-[420px]"');
+    expect(await readFile(path.join(root, ".reframe", "overrides.css"), "utf8").catch(() => "")).not.toContain("420px");
+  });
+
+  it("SUP-P6-05b promotes unmapped Tailwind color edits into text utilities", async () => {
+    await put("tailwind.config.ts", "export default {};\n");
+    await put("src/App.jsx", 'export default()=> <p id="tagline" className="text-sm uppercase">Reframe demo</p>;');
+    const editor = createSourceEditor({ projectRoot: root, framework: "react", styling: "tailwind" });
+    const result = await editor.applyEdit({
+      fingerprint: { ...fingerprint("tagline", ["text-sm", "uppercase"]), tag: "p", text: "Reframe demo" },
+      currentWidth: 120,
+      width: 120,
+      previewStyles: { color: "rgb(56, 189, 248)" },
+      originalStyles: { color: "rgb(148, 163, 184)" },
+    });
+    expect(result.status).toBe("applied");
+    expect(result.code).toBe("SOURCE_CLASS_PROMOTED");
+    expect(await readFile(path.join(root, "src/App.jsx"), "utf8")).toContain("text-[rgb(56,189,248)]");
+  });
+
+  it("SUP-P6-05c falls back to overrides when Tailwind JSX target is not identifiable", async () => {
+    await put("tailwind.config.ts", "export default {};\n");
+    await put("src/App.jsx", '<article class="card">One</article><article class="card">Two</article>');
+    const editor = createSourceEditor({ projectRoot: root, framework: "react", styling: "tailwind" });
+    const result = await editor.applyWidth(request(null, ["card"], 420));
+    expect(result.status).toBe("applied");
+    expect(result.code).toBe("OVERRIDE_APPLIED");
+    expect(await readFile(path.join(root, ".reframe", "overrides.css"), "utf8")).toContain("420px");
+  });
+
+  it("SUP-P6-06 promotes unmapped React edits into the component's imported CSS", async () => {
+    await put("src/Card.jsx", 'import "./Card.css";\nexport function Card() { return <article className="card">Annual</article>; }');
+    await put("src/Card.css", ".card { padding: 24px; }\n");
+    await put("src/unrelated.css", "body { margin: 0; }\n");
+    const editor = createSourceEditor({ projectRoot: root, framework: "react", styling: "plain-css" });
+    const fp = { ...fingerprint(null, ["card"]), tag: "article", text: "Annual" };
+    const className = promotedClassName(fingerprintHash(fp));
+    const result = await editor.applyWidth({ fingerprint: fp, currentWidth: 280, width: 420 });
+    expect(result.status).toBe("applied");
+    expect(result.code).toBe("SOURCE_CLASS_PROMOTED");
+    expect(await readFile(path.join(root, "src/Card.jsx"), "utf8")).toContain(`className="card ${className}"`);
+    expect(await readFile(path.join(root, "src/Card.css"), "utf8")).toContain(`.${className} {\n  width: 420px;\n}`);
+    expect(await readFile(path.join(root, "src/unrelated.css"), "utf8")).toBe("body { margin: 0; }\n");
+  });
+
+  it("SUP-P6-06b keeps ambiguous React stylesheet ownership in overrides", async () => {
+    await put("src/Card.jsx", 'export function Card() { return <article className="card">Annual</article>; }');
+    await put("src/a.css", ".a {}\n");
+    await put("src/b.css", ".b {}\n");
+    const editor = createSourceEditor({ projectRoot: root, framework: "react", styling: "plain-css" });
+    const result = await editor.applyWidth({ fingerprint: { ...fingerprint(null, ["card"]), tag: "article", text: "Annual" }, currentWidth: 280, width: 420 });
+    expect(result.code).toBe("OVERRIDE_APPLIED");
+    expect(await readFile(path.join(root, ".reframe", "overrides.css"), "utf8")).toContain("420px");
   });
 
   it("P6-13 inserts transform into the best matching class rule when moving layout elements", async () => {

@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Reframe Vanilla Complex Demo</title>
+    <link rel="icon" href="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=" />
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <header id="site-header" class="site-header">
+      <a href="#" id="brand-logo" class="brand-logo" aria-label="Reframe home">
+        <span class="brand-icon" aria-hidden="true">◆</span>
+        <span class="brand-text">Reframe</span>
+      </a>
+      <nav id="primary-nav" class="primary-nav" aria-label="Primary">
+        <a href="#hero" class="nav-link">Product</a>
+        <a href="#pricing" class="nav-link nav-link--active">Pricing</a>
+        <a href="#stats" class="nav-link">Customers</a>
+        <a href="#testimonials" class="nav-link">Stories</a>
+      </nav>
+      <div id="header-actions" class="header-actions">
+        <button id="secondary-cta" class="btn btn--ghost" type="button">Sign in</button>
+        <button id="primary-cta" class="btn btn--primary" type="button">Get started</button>
+      </div>
+    </header>
+
+    <nav id="sticky-subnav" class="sticky-subnav" aria-label="Section navigation">
+      <a href="#hero" class="subnav-link subnav-link--active">Overview</a>
+      <a href="#pricing" class="subnav-link">Plans</a>
+      <a href="#stats" class="subnav-link">Metrics</a>
+      <a href="#features" class="subnav-link">Features</a>
+      <a href="#testimonials" class="subnav-link">Testimonials</a>
+    </nav>
+
+    <main id="main-content">
+      <section id="hero" class="hero">
+        <div class="hero__glow" aria-hidden="true"></div>
+        <div class="hero__inner">
+          <p id="hero-eyebrow" class="hero__eyebrow">Visual development, grounded in source</p>
+          <h1 id="hero-title" class="hero__title">
+            Edit the interface you are <em>actually</em> running.
+          </h1>
+          <p id="hero-subtitle" class="hero__subtitle">
+            Map edits to real files. Override what cannot be traced. Ship with confidence.
+          </p>
+          <div id="hero-actions" class="hero__actions">
+            <button id="hero-primary-cta" class="btn btn--primary btn--lg" type="button">
+              Start building
+            </button>
+            <button id="hero-secondary-cta" class="btn btn--outline btn--lg" type="button">
+              Watch demo
+            </button>
+          </div>
+          <ul id="hero-badges" class="hero__badges" aria-label="Highlights">
+            <li class="badge-pill badge-pill--mapped">Source-mapped edits</li>
+            <li class="badge-pill badge-pill--mapped">Live preview</li>
+            <li class="badge-pill badge-pill--mapped">Deterministic output</li>
+          </ul>
+        </div>
+        <aside id="hero-sidebar" class="hero-sidebar" aria-label="Quick stats">
+          <div class="hero-sidebar__card">
+            <span class="hero-sidebar__label">Active sessions</span>
+            <strong class="hero-sidebar__value">2,847</strong>
+          </div>
+          <div class="hero-sidebar__card hero-sidebar__card--accent">
+            <span class="hero-sidebar__label">Edits today</span>
+            <strong class="hero-sidebar__value">14.2k</strong>
+          </div>
+        </aside>
+      </section>
+
+      <section id="pricing" class="pricing-section" aria-labelledby="pricing-heading">
+        <header class="section-header">
+          <p class="section-eyebrow reframe-mapped-500e4de6">Pricing</p>
+          <h2 id="pricing-heading" class="section-title">Plans for every team</h2>
+          <p class="section-subtitle">Mapped cards below write to <code>style.css</code> and <code>index.html</code>.</p>
+        </header>
+        <div id="pricing-grid" class="pricing-grid">
+          <article id="card-starter" class="pricing-card" data-plan="starter">
+            <span class="pricing-card__tier">Starter</span>
+            <h3 class="pricing-card__price"><span class="pricing-card__currency">$</span>0</h3>
+            <p class="pricing-card__desc">For small experiments and hackathons.</p>
+            <ul class="pricing-card__features">
+              <li>3 projects</li>
+              <li>Source mapping</li>
+              <li>Community support</li>
+            </ul>
+            <button class="btn btn--outline pricing-card__cta" type="button">Choose Starter</button>
+          </article>
+          <article id="card-annual" class="pricing-card pricing-card--featured" data-plan="annual">
+            <span class="pricing-card__badge">Most popular</span>
+            <span class="pricing-card__tier">Annual</span>
+            <h3 class="pricing-card__price"><span class="pricing-card__currency">$</span>29<span class="pricing-card__period">/mo</span></h3>
+            <p class="pricing-card__desc">The official edit target for Reframe tests.</p>
+            <ul class="pricing-card__features">
+              <li>Unlimited projects</li>
+              <li>AI-assisted edits</li>
+              <li>History &amp; time machine</li>
+            </ul>
+            <button id="pricing-cta-annual" class="btn btn--primary pricing-card__cta" type="button">Choose Annual</button>
+          </article>
+          <article id="card-enterprise" class="pricing-card" data-plan="enterprise">
+            <span class="pricing-card__tier">Enterprise</span>
+            <h3 class="pricing-card__price">Custom</h3>
+            <p class="pricing-card__desc">For growing teams with compliance needs.</p>
+            <ul class="pricing-card__features">
+              <li>SSO &amp; audit logs</li>
+              <li>Dedicated support</li>
+              <li>Custom integrations</li>
+            </ul>
+            <button class="btn btn--ghost pricing-card__cta" type="button">Contact sales</button>
+          </article>
+        </div>
+      </section>
+
+      <section id="stats" class="stats-section" aria-labelledby="stats-heading">
+        <h2 id="stats-heading" class="visually-hidden">Platform statistics</h2>
+        <div id="stats-row" class="stats-row">
+          <div class="stat-card" id="stat-users">
+            <span class="stat-card__icon" aria-hidden="true">▲</span>
+            <strong class="stat-card__value">48k+</strong>
+            <span class="stat-card__label">Developers</span>
+          </div>
+          <div class="stat-card stat-card--highlight" id="stat-edits">
+            <span class="stat-card__icon" aria-hidden="true">◆</span>
+            <strong class="stat-card__value">1.2M</strong>
+            <span class="stat-card__label">Edits mapped</span>
+          </div>
+          <div class="stat-card" id="stat-uptime">
+            <span class="stat-card__icon" aria-hidden="true">●</span>
+            <strong class="stat-card__value">99.9%</strong>
+            <span class="stat-card__label">Uptime</span>
+          </div>
+          <div class="stat-card" id="stat-teams">
+            <span class="stat-card__icon" aria-hidden="true">■</span>
+            <strong class="stat-card__value">3.4k</strong>
+            <span class="stat-card__label">Teams</span>
+          </div>
+        </div>
+      </section>
+
+      <section id="features" class="features-section" aria-labelledby="features-heading">
+        <div class="features-layout">
+          <aside id="features-sidebar" class="features-sidebar">
+            <h2 id="features-heading" class="features-sidebar__title">Feature matrix</h2>
+            <p class="features-sidebar__desc">Sticky sidebar with zebra comparison table.</p>
+          </aside>
+          <div class="features-content">
+            <table id="feature-table" class="feature-table">
+              <caption class="visually-hidden">Plan feature comparison</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Feature</th>
+                  <th scope="col">Starter</th>
+                  <th scope="col">Annual</th>
+                  <th scope="col">Enterprise</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">Source mapping</th>
+                  <td>✓</td>
+                  <td>✓</td>
+                  <td>✓</td>
+                </tr>
+                <tr>
+                  <th scope="row">Override layer</th>
+                  <td>✓</td>
+                  <td>✓</td>
+                  <td>✓</td>
+                </tr>
+                <tr>
+                  <th scope="row">AI edits</th>
+                  <td>—</td>
+                  <td>✓</td>
+                  <td>✓</td>
+                </tr>
+                <tr>
+                  <th scope="row">SSO</th>
+                  <td>—</td>
+                  <td>—</td>
+                  <td>✓</td>
+                </tr>
+                <tr>
+                  <th scope="row">Audit logs</th>
+                  <td>—</td>
+                  <td>—</td>
+                  <td>✓</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="testimonials" class="testimonials-section" aria-labelledby="testimonials-heading">
+        <header class="section-header section-header--light">
+          <p class="section-eyebrow">Testimonials</p>
+          <h2 id="testimonials-heading" class="section-title">Loved by builders</h2>
+        </header>
+        <div id="testimonial-carousel" class="testimonial-carousel">
+          <blockquote id="testimonial-1" class="testimonial-card testimonial-card--active">
+            <p class="testimonial-card__quote">"Mapped edits finally feel like editing real code, not fighting a WYSIWYG."</p>
+            <footer class="testimonial-card__author">
+              <span class="testimonial-card__avatar" aria-hidden="true">A</span>
+              <cite>Alex Chen, Staff Engineer</cite>
+            </footer>
+          </blockquote>
+          <blockquote id="testimonial-2" class="testimonial-card">
+            <p class="testimonial-card__quote">"The override layer saved us when Figma paste broke our source map."</p>
+            <footer class="testimonial-card__author">
+              <span class="testimonial-card__avatar" aria-hidden="true">M</span>
+              <cite>Morgan Lee, Design Systems</cite>
+            </footer>
+          </blockquote>
+          <blockquote id="testimonial-3" class="testimonial-card">
+            <p class="testimonial-card__quote">"Complex layouts, real CSS — Reframe handles both mapped and unmapped."</p>
+            <footer class="testimonial-card__author">
+              <span class="testimonial-card__avatar" aria-hidden="true">J</span>
+              <cite>Jordan Park, Frontend Lead</cite>
+            </footer>
+          </blockquote>
+        </div>
+        <div id="carousel-dots" class="carousel-dots" role="tablist" aria-label="Testimonial navigation">
+          <button class="carousel-dot carousel-dot--active" type="button" aria-label="Testimonial 1" aria-selected="true"></button>
+          <button class="carousel-dot" type="button" aria-label="Testimonial 2"></button>
+          <button class="carousel-dot" type="button" aria-label="Testimonial 3"></button>
+        </div>
+      </section>
+
+      <section id="cta-banner" class="cta-banner">
+        <div class="cta-banner__content">
+          <h2 id="cta-banner-title" class="cta-banner__title">Ready to reframe your workflow?</h2>
+          <p class="cta-banner__text">Join thousands of developers shipping visual edits with confidence.</p>
+        </div>
+        <button id="cta-banner-btn" class="btn btn--primary btn--lg" type="button">Start free trial</button>
+      </section>
+    </main>
+
+    <footer id="site-footer" class="site-footer">
+      <div class="site-footer__brand">
+        <span class="brand-icon" aria-hidden="true">◆</span>
+        <span>Reframe Complex Demo</span>
+      </div>
+      <nav class="site-footer__nav" aria-label="Footer">
+        <a href="#">Docs</a>
+        <a href="#">GitHub</a>
+        <a href="#">Privacy</a>
+      </nav>
+      <p class="site-footer__copy">Built for deterministic Reframe testing.</p>
+    </footer>
+
+    <script type="module" src="/script.js"></script>
+  </body>
+</html>

@@ -31,7 +31,7 @@ test("P5-16 measures 2,000-node selection and a five-second drag without long ta
     (window as any).__phase5LongTasks = [];
     if (typeof PerformanceObserver !== "undefined") new PerformanceObserver((list) => (window as any).__phase5LongTasks.push(...list.getEntries().map((entry) => entry.duration))).observe({ type: "longtask", buffered: false });
   });
-  await page.locator("#reframe-root [data-reframe-select]").click();
+  await page.locator('#reframe-root [data-reframe-tool="select"]').click();
   for (let index = 1_900; index < 2_000; index += 1) await page.locator(`#node-${index}`).hover();
   await page.locator("#target").click();
   const handle = await page.locator("#reframe-root [data-reframe-handle]").boundingBox();

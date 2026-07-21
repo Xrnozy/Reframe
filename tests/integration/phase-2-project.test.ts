@@ -206,13 +206,21 @@ describe("Phase 2 project detection", () => {
   });
 
   it("P2-11 limits preview-only frameworks without source-write capability", async () => {
-    for (const [fixtureName, framework] of [["unsupported-vue", "vue"], ["unsupported-next", "next"], ["unsupported-nuxt", "nuxt"], ["unsupported-svelte", "svelte"]] as const) {
+    for (const [fixtureName, framework] of [["unsupported-vue", "vue"], ["unsupported-nuxt", "nuxt"], ["unsupported-svelte", "svelte"]] as const) {
       const copy = await fixture(fixtureName, (root) => writeFile(path.join(root, "package-lock.json"), "{}\n"));
       const descriptor = await detectProject(copy.root);
       expect(descriptor.framework).toBe(framework);
       expect(descriptor.capabilities).toMatchObject({ canProxy: true, canExplore: true, canWriteSource: false, canStart: true });
       expect(descriptor.confidence).toBe("medium");
     }
+  });
+
+  it("P2-11a enables source writes for Next.js", async () => {
+    const copy = await fixture("unsupported-next", (root) => writeFile(path.join(root, "package-lock.json"), "{}\n"));
+    const descriptor = await detectProject(copy.root);
+    expect(descriptor.framework).toBe("next");
+    expect(descriptor.capabilities).toMatchObject({ canProxy: true, canExplore: true, canWriteSource: true, canStart: true });
+    expect(descriptor.confidence).toBe("high");
   });
 
   it("P2-11b enables source writes for React TypeScript and Laravel Tailwind projects", async () => {
@@ -401,6 +409,56 @@ describe("Phase 2 project detection", () => {
     }
   });
 
+  it("P2-21 skips directory listings when probing for a running dev server", async () => {
+    const listingReservation = await reservePort();
+    const appReservation = await reservePort();
+    const listingPort = listingReservation.port;
+    const appPort = appReservation.port;
+    await listingReservation.release();
+    await appReservation.release();
+    const listing = createServer((_request, response) => {
+      response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+      response.end("<!DOCTYPE html><html><head><title>Index of /</title></head><body><pre>Parent Directory</pre></body></html>");
+    });
+    const app = createServer((_request, response) => response.end("real-app"));
+    await new Promise<void>((resolve, reject) => { listing.once("error", reject); listing.listen(listingPort, "127.0.0.1", resolve); });
+    await new Promise<void>((resolve, reject) => { app.once("error", reject); app.listen(appPort, "127.0.0.1", resolve); });
+    try {
+      expect(await findRunningDevServer([listingPort, appPort])).toBe(`http://127.0.0.1:${appPort}/`);
+    } finally {
+      await new Promise<void>((resolve, reject) => listing.close((error) => error ? reject(error) : resolve()));
+      await new Promise<void>((resolve, reject) => app.close((error) => error ? reject(error) : resolve()));
+      await waitForPortRelease(listingPort, 2_000);
+      await waitForPortRelease(appPort, 2_000);
+    }
+  });
+
+  it("SUP-P2-05 starts the Vanilla static server instead of attaching to unrelated loopback listings", async () => {
+    const copy = await fixture("vanilla");
+    const reservation = await reservePort();
+    const decoyPort = reservation.port;
+    await reservation.release();
+    const decoy = createServer((_request, response) => {
+      response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+      response.end("<!DOCTYPE html><html><head><title>Index of /</title></head><body><pre>demo/vanilla-demo/index.html</pre></body></html>");
+    });
+    await new Promise<void>((resolve, reject) => { decoy.once("error", reject); decoy.listen(decoyPort, "127.0.0.1", resolve); });
+    try {
+      const descriptor = await detectProject(copy.root);
+      const runtime = await resolveDevServer(descriptor, { probePorts: [decoyPort, 3000] });
+      try {
+        expect(runtime.ownership).toBe(true);
+        expect(runtime.command).toEqual(["reframe-static-server"]);
+        expect(await (await fetch(runtime.url)).text()).toContain("card-annual");
+      } finally {
+        await runtime.stop();
+      }
+    } finally {
+      await new Promise<void>((resolve, reject) => decoy.close((error) => error ? reject(error) : resolve()));
+      await waitForPortRelease(decoyPort, 2_000);
+    }
+  });
+
   it("SUP-P2-03 detects workspace vanilla-demo as static vanilla without project writes", async () => {
     const root = path.join(projectRoot, "demo", "vanilla-demo");
     const descriptor = await detectProject(root);
@@ -414,6 +472,31 @@ describe("Phase 2 project detection", () => {
     const descriptor = await detectProject(root);
     expect(descriptor).toMatchObject({ framework: "react-vite", styling: "plain-css", packageManager: "npm", command: { executable: "npm", args: ["run", "dev"], script: "dev" }, capabilities: { canStart: true, canWriteSource: true } });
     expect(descriptor.evidence).toEqual(expect.arrayContaining(["framework:react-dependency", "framework:vite-dependency-or-script", "command:package-script:dev"]));
+  });
+
+  it("SUP-P2-07 rejects the monorepo workspace root instead of treating it as a project", async () => {
+    await expect(detectProject(projectRoot)).rejects.toMatchObject({
+      code: "PROJECT_ROOT_INVALID",
+      message: expect.stringContaining("demo/vanilla-demo"),
+    });
+  });
+
+  it("SUP-P2-08 rejects explicit attach URLs that return directory listings", async () => {
+    const reservation = await reservePort();
+    const port = reservation.port;
+    await reservation.release();
+    const listing = createServer((_request, response) => {
+      response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+      response.end("<!DOCTYPE html><html><head><title>Index of /</title></head><body><table><tr><td><a href=\"node_modules/\">node_modules/</a></td></tr></table></body></html>");
+    });
+    await new Promise<void>((resolve, reject) => { listing.once("error", reject); listing.listen(port, "127.0.0.1", resolve); });
+    try {
+      await expect(attachProject(`http://127.0.0.1:${port}/`)).rejects.toMatchObject({ code: "ATTACH_NOT_READY" });
+      await expect(resolveDevServer(await detectProject(path.join(projectRoot, "demo", "vanilla-demo")), { attachUrl: `http://127.0.0.1:${port}/` })).rejects.toMatchObject({ code: "ATTACH_NOT_READY" });
+    } finally {
+      await new Promise<void>((resolve, reject) => listing.close((error) => error ? reject(error) : resolve()));
+      await waitForPortRelease(port, 2_000);
+    }
   });
 
   it("SUP-P2-01 runs the Phase 2 CLI orchestration against a selected Vanilla project", async () => {

@@ -224,6 +224,7 @@ async function runProjectReframe(options: RunOptions): Promise<number> {
         framework: proxyFramework(descriptor.framework),
         capabilities: { canExplore: descriptor.capabilities.canExplore, canWriteSource: descriptor.capabilities.canWriteSource },
       },
+      projectStyling: descriptor.styling,
     });
     let proxyAddress: { port: number; url: string };
     try { proxyAddress = await proxy.listen(configuredPort(options.port)); }

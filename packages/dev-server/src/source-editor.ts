@@ -5,6 +5,7 @@ import { chmod, lstat, mkdir, open, readFile, realpath, readdir, rename, stat, u
 import { tmpdir } from "node:os";
 import path from "node:path";
 import type { CheckpointInput, CheckpointMetadata, HistoryPreflight } from "./history.js";
+import type { ProjectStyling } from "./project.js";
 
 export type MappingConfidence = "exact" | "probable" | "ambiguous" | "not-mapped";
 export type StylingMode = "vanilla-css" | "react-css" | "css-module" | "tailwind";
@@ -76,9 +77,11 @@ export interface TransactionOperations {
   readonly rollbackRename: typeof rename;
 }
 
+
 export interface SourceEditorOptions {
   readonly projectRoot: string;
   readonly framework?: string;
+  readonly styling?: ProjectStyling;
   readonly verificationTimeoutMs?: number;
   readonly verify?: (plan: EditPlan, state?: "apply" | "rollback") => boolean | Promise<boolean>;
   readonly operations?: Partial<TransactionOperations>;
@@ -96,6 +99,13 @@ function isSourceFile(name: string): boolean {
   const lower = name.toLowerCase();
   if (lower.endsWith(".blade.php")) return true;
   return sourceExtensions.has(path.extname(lower));
+}
+
+const markupExtensions = new Set([".jsx", ".js", ".tsx", ".ts", ".html"]);
+
+function isMarkupSourceFile(file: string): boolean {
+  const lower = file.toLowerCase();
+  return markupExtensions.has(path.extname(lower)) || lower.endsWith(".blade.php");
 }
 
 function hash(value: Uint8Array): string {
@@ -332,7 +342,7 @@ function jsxNodes(source: string): JsxNode[] {
     const component = components.find((owner) => start > owner.start && start < owner.end)?.name ?? null;
     const owner = components.find((candidate) => candidate.name === component);
     const id = /\bid\s*=\s*["']([^"']+)["']/.exec(node)?.[1] ?? null;
-    const literal = /\bclassName\s*=\s*(["'])([\s\S]*?)\1/.exec(node);
+    const literal = /\bclassName\s*=\s*(["'])([\s\S]*?)\1/.exec(node) ?? /\bclass\s*=\s*(["'])([\s\S]*?)\1/.exec(node);
     const expression = /\bclassName\s*=\s*\{([\s\S]*?)\}/.exec(node)?.[1]?.trim() ?? null;
     const literalValue = literal?.[2] ?? "";
     const literalOffset = literal ? start + literal.index + literal[0].indexOf(literalValue) : -1;
@@ -359,6 +369,68 @@ function tailwindHeightToken(height: number): string {
   if (height === 320) return "h-80";
   if (height === 384) return "h-96";
   return `h-[${height}px]`;
+}
+
+const tailwindWidthPattern = /^(?:[\w-]+:)*w-(?:\d+|full|\[.+\])$/;
+const tailwindHeightPattern = /^(?:[\w-]+:)*h-(?:\d+|full|\[.+\])$/;
+const tailwindTextColorPattern = /^(?:[\w-]+:)*text-(?:\w+(?:-\d+)?|\[[^\]]+\])$/;
+
+function upsertTailwindUtility(classes: string, pattern: RegExp, token: string): string {
+  const tokens = classes.split(/\s+/).filter(Boolean);
+  const index = tokens.findIndex((entry) => pattern.test(entry));
+  if (index >= 0) tokens[index] = token;
+  else tokens.push(token);
+  return tokens.join(" ");
+}
+
+function tailwindTextColorToken(color: string): string {
+  return `text-[${color.replace(/\s+/g, "")}]`;
+}
+
+function injectClassNameIntoOpeningTag(openingTag: string, className: string): string {
+  const classMatch = /\bclassName\s*=\s*(["'])([^"']*)\1/i.exec(openingTag) ?? /\bclass\s*=\s*(["'])([^"']*)\1/i.exec(openingTag);
+  if (classMatch) {
+    const existing = classMatch[2] ?? "";
+    if (existing.split(/\s+/).filter(Boolean).includes(className)) return openingTag;
+    const quote = classMatch[1]!;
+    const attr = classMatch[0].startsWith("className") ? "className" : "class";
+    const replacement = `${attr}=${quote}${existing.trimEnd()} ${className}${quote}`;
+    return `${openingTag.slice(0, classMatch.index)}${replacement}${openingTag.slice(classMatch.index! + classMatch[0].length)}`;
+  }
+  const insertAt = openingTag.lastIndexOf(">");
+  return `${openingTag.slice(0, insertAt)} className="${className}"${openingTag.slice(insertAt)}`;
+}
+
+async function projectUsesTailwind(root: string, styling?: ProjectStyling): Promise<boolean> {
+  if (styling === "tailwind") return true;
+  if (styling && styling !== "unknown") return false;
+  for (const name of ["tailwind.config.js", "tailwind.config.ts", "tailwind.config.cjs", "tailwind.config.mjs"]) {
+    try { await stat(path.join(root, name)); return true; } catch { /* ponytail: try next config name */ }
+  }
+  return false;
+}
+
+function findUniqueJsxTarget(jsx: Map<string, { text: string; nodes: JsxNode[] }>, fingerprint: ElementFingerprint): { file: string; text: string; node: JsxNode } | null {
+  const exactNodes = [...jsx.entries()].flatMap(([file, parsed]) => parsed.nodes.filter((node) => node.id === fingerprint.id).map((node) => ({ file, text: parsed.text, node })));
+  const inferredNodes = [...jsx.entries()].flatMap(([file, parsed]) => parsed.nodes.filter((node) => node.tag.toLowerCase() === fingerprint.tag && fingerprint.classes.some((name) => hasStaticClass(node, name))).map((node) => ({ file, text: parsed.text, node })));
+  const componentUse = exactNodes.some(({ node }) => /^[A-Z]/.test(node.tag));
+  const mappedNodes = componentUse && inferredNodes.length === 1 ? inferredNodes : exactNodes.length ? exactNodes : inferredNodes.length === 1 ? inferredNodes : [];
+  if (mappedNodes.length !== 1) return null;
+  const target = mappedNodes[0]!;
+  if (target.node.classExpression && !/^[A-Za-z_$][\w$]*\.[A-Za-z_$][\w$]*$/.test(target.node.classExpression)) return null;
+  return target;
+}
+
+async function reactCssTarget(root: string, sourceFile: string, source: string): Promise<string | null> {
+  const imported = [...source.matchAll(/\bimport\s+(?:[^"']+\s+from\s+)?["']([^"']+\.css)["']/gi)]
+    .map((match) => match[1]!)
+    .filter((value) => value.startsWith(".") && !/\.module\.css$/i.test(value))
+    .map((value) => path.resolve(path.dirname(sourceFile), value));
+  const candidates = imported.length === 1
+    ? imported
+    : (await files(root)).filter((file) => /\.css$/i.test(file) && !/\.module\.css$/i.test(file));
+  if (candidates.length !== 1 || !within(root, candidates[0]!)) return null;
+  try { await stat(candidates[0]!); return candidates[0]!; } catch { return null; }
 }
 
 function cssLengthPx(value: string): number | null {
@@ -399,6 +471,119 @@ function validWidth(width: number): boolean {
   return Number.isFinite(width) && Number.isInteger(width) && width >= 1 && width <= 10_000;
 }
 
+export function promotedClassName(fpHash: string): string {
+  return `reframe-mapped-${fpHash}`;
+}
+
+function promotedSelector(fingerprint: ElementFingerprint, fpHash: string): { selector: string; className?: string } {
+  if (fingerprint.id) return { selector: `#${fingerprint.id}` };
+  const className = promotedClassName(fpHash);
+  return { selector: `.${className}`, className };
+}
+
+function injectClassIntoOpeningTag(openingTag: string, className: string): string {
+  const classMatch = /\bclass\s*=\s*(["'])([^"']*)\1/i.exec(openingTag);
+  if (classMatch) {
+    const existing = classMatch[2] ?? "";
+    if (existing.split(/\s+/).filter(Boolean).includes(className)) return openingTag;
+    const quote = classMatch[1]!;
+    const replacement = `class=${quote}${existing.trimEnd()} ${className}${quote}`;
+    return `${openingTag.slice(0, classMatch.index)}${replacement}${openingTag.slice(classMatch.index! + classMatch[0].length)}`;
+  }
+  const insertAt = openingTag.lastIndexOf(">");
+  return `${openingTag.slice(0, insertAt)} class="${className}"${openingTag.slice(insertAt)}`;
+}
+
+function upsertPromotedCssRule(css: string, selector: string, styles: Record<string, string>): string {
+  const rulePattern = new RegExp(`${escapeRegExp(selector)}\\s*\\{[^}]*\\}`, "g");
+  const block = Object.entries(styles).map(([property, value]) => `  ${property}: ${value};`).join("\n");
+  const rule = `${selector} {\n${block}\n}`;
+  if (rulePattern.test(css)) return css.replace(rulePattern, rule);
+  const trimmed = css.trimEnd();
+  return `${trimmed}${trimmed ? "\n\n" : ""}${rule}\n`;
+}
+
+interface VanillaHtmlTarget {
+  readonly relativePath: string;
+  readonly matchIndex: number;
+  readonly openingTag: string;
+  readonly innerStart: number;
+  readonly innerEnd: number;
+}
+
+function findVanillaHtmlTarget(html: string, relativePath: string, fingerprint: ElementFingerprint, originalText?: string): VanillaHtmlTarget | null {
+  const locate = (pattern: RegExp): VanillaHtmlTarget | null => {
+    const match = pattern.exec(html);
+    if (!match) return null;
+    const openingTag = match[0];
+    const innerStart = match.index + openingTag.length;
+    const closePattern = new RegExp(`</${escapeRegExp(fingerprint.tag)}>`, "i");
+    const close = closePattern.exec(html.slice(innerStart));
+    const innerEnd = close ? innerStart + close.index : innerStart;
+    return { relativePath, matchIndex: match.index, openingTag, innerStart, innerEnd };
+  };
+  if (fingerprint.id) {
+    return locate(new RegExp(`<${escapeRegExp(fingerprint.tag)}\\b[^>]*\\bid\\s*=\\s*["']${escapeRegExp(fingerprint.id)}["'][^>]*>`, "i"));
+  }
+  if (fingerprint.classes.length) {
+    const classChecks = fingerprint.classes.map((name) => `(?=[^>]*\\bclass\\s*=\\s*["'][^"']*\\b${escapeRegExp(name)}\\b)`).join("");
+    const matches = [...html.matchAll(new RegExp(`<${escapeRegExp(fingerprint.tag)}\\b${classChecks}[^>]*>`, "gi"))];
+    if (matches.length === 1) {
+      const match = matches[0]!;
+      const openingTag = match[0];
+      const innerStart = match.index! + openingTag.length;
+      const closePattern = new RegExp(`</${escapeRegExp(fingerprint.tag)}>`, "i");
+      const close = closePattern.exec(html.slice(innerStart));
+      const innerEnd = close ? innerStart + close.index : innerStart;
+      return { relativePath, matchIndex: match.index!, openingTag, innerStart, innerEnd };
+    }
+  }
+  if (originalText) {
+    const escaped = escapeRegExp(originalText.trim());
+    const matches = [...html.matchAll(new RegExp(`<${escapeRegExp(fingerprint.tag)}\\b[^>]*>\\s*${escaped}\\s*</${escapeRegExp(fingerprint.tag)}>`, "gi"))];
+    if (matches.length === 1) {
+      const match = matches[0]!;
+      const openingEnd = match[0].indexOf(">") + 1;
+      return {
+        relativePath,
+        matchIndex: match.index!,
+        openingTag: match[0].slice(0, openingEnd),
+        innerStart: match.index! + openingEnd,
+        innerEnd: match.index! + match[0].length - `</${fingerprint.tag}>`.length,
+      };
+    }
+  }
+  return null;
+}
+
+type VanillaStyleTarget =
+  | { kind: "file"; relativePath: string }
+  | { kind: "inline"; relativePath: string; styleStart: number; styleEnd: number; bodyStart: number; bodyEnd: number };
+
+function resolveVanillaStyleTarget(htmlPath: string, html: string): VanillaStyleTarget {
+  const linked = [...html.matchAll(/<link\b[^>]*\brel\s*=\s*["']stylesheet["'][^>]*\bhref\s*=\s*["']([^"']+\.css)["']/gi)]
+    .map((match) => match[1]!.replace(/^\//, ""))
+    .find((href) => !href.startsWith("http"));
+  if (linked) return { kind: "file", relativePath: linked };
+  const inline = /<style(?:\s[^>]*)?>([\s\S]*?)<\/style\s*>/i.exec(html);
+  if (inline) {
+    const body = inline[1] ?? "";
+    const bodyStart = inline.index + inline[0].indexOf(body);
+    return { kind: "inline", relativePath: htmlPath, styleStart: inline.index, styleEnd: inline.index + inline[0].length, bodyStart, bodyEnd: bodyStart + body.length };
+  }
+  const vite = /@vite\s*\(\s*(?:\[\s*)?["']([^"']+\.css)["']/i.exec(html)?.[1];
+  if (vite) return { kind: "file", relativePath: vite.replace(/^\//, "") };
+  return { kind: "file", relativePath: "style.css" };
+}
+
+function ensureStylesheetLink(html: string): string {
+  if (/<link\b[^>]*\brel\s*=\s*["']stylesheet["']/i.test(html)) return html;
+  const link = '<link rel="stylesheet" href="style.css" />\n';
+  const headClose = /<\/head>/i.exec(html);
+  if (headClose) return `${html.slice(0, headClose.index)}    ${link}${html.slice(headClose.index)}`;
+  return `${link}${html}`;
+}
+
 export function injectVanillaSourceMetadata(html: string): string {
   return html.replace(/<([a-z][\w:-]*)(\s[^<>]*?\bid=(['"])([^'"<>]+)\3[^<>]*?)>/gi, (whole, tag: string, attributes: string, _quote: string, id: string) => attributes.includes("data-reframe-source-id") ? whole : `<${tag}${attributes} data-reframe-source-id="${id.replace(/[&"]/g, "")}">`);
 }
@@ -434,7 +619,7 @@ export function createSourceEditor(options: SourceEditorOptions) {
   const operations: TransactionOperations = { writeFile, rename, unlink, rollbackWriteFile: writeFile, rollbackRename: rename, ...options.operations };
 
   async function injectReactMetadata(relativePath: string, transformed: string): Promise<string> {
-    if (!/\.(?:jsx|js)$/.test(relativePath)) return transformed;
+    if (!/\.(?:jsx|js|tsx|ts)$/i.test(relativePath)) return transformed;
     const absolute = await resolveProjectPath(projectRoot, relativePath);
     return injectReactViteSourceMetadata(transformed, await readFile(absolute, "utf8"), relativePath.split(path.sep).join("/"));
   }
@@ -444,7 +629,7 @@ export function createSourceEditor(options: SourceEditorOptions) {
     const root = await realpath(projectRoot);
     const allFiles = await files(root);
     const jsx = new Map<string, { text: string; nodes: JsxNode[] }>();
-    for (const file of allFiles.filter((file) => [".jsx", ".js"].includes(path.extname(file).toLowerCase()))) {
+    for (const file of allFiles.filter((file) => isMarkupSourceFile(file))) {
       const text = await readFile(file, "utf8");
       jsx.set(file, { text, nodes: jsxNodes(text) });
     }
@@ -566,7 +751,7 @@ export function createSourceEditor(options: SourceEditorOptions) {
     const root = await realpath(projectRoot);
     const allFiles = await files(root);
     const jsx = new Map<string, { text: string; nodes: JsxNode[] }>();
-    for (const file of allFiles.filter((file) => [".jsx", ".js"].includes(path.extname(file).toLowerCase()))) {
+    for (const file of allFiles.filter((file) => isMarkupSourceFile(file))) {
       const text = await readFile(file, "utf8");
       jsx.set(file, { text, nodes: jsxNodes(text) });
     }
@@ -661,7 +846,7 @@ export function createSourceEditor(options: SourceEditorOptions) {
       const bytes = await readFile(file);
       return frozen({ confidence: "exact", evidence: `Static HTML text at ${relativePath}:${lineAt(text, start)}`, candidates, requiresImpactApproval: false, plan: { relativePath, range: { start, end: start + before.length }, sourceIdentity: `html:${lineAt(text, start)}:${request.fingerprint.tag}:text`, route: request.fingerprint.route, expectedHash: hash(bytes), before, after: request.previewText, stylingMode: "vanilla-css", confidence: "exact", evidence: `Static HTML text`, impact: { shared: false, locations: [relativePath] }, allowedChangedFiles: [relativePath] } });
     }
-    for (const file of allFiles.filter((entry) => /\.(?:jsx|js)$/i.test(entry))) {
+    for (const file of allFiles.filter((entry) => isMarkupSourceFile(entry))) {
       const text = await readFile(file, "utf8");
       const nodes = jsxNodes(text).filter((node) => (request.fingerprint.id ? node.id === request.fingerprint.id : node.tag.toLowerCase() === request.fingerprint.tag && request.fingerprint.classes.every((name) => hasStaticClass(node, name))));
       if (nodes.length !== 1) continue;
@@ -853,6 +1038,234 @@ export function createSourceEditor(options: SourceEditorOptions) {
     return applyEdit(request, verify);
   }
 
+  async function promoteUnmappedToSource(request: WidthEditRequest): Promise<EditResult | null> {
+    const mappingStarted = performance.now();
+    const root = await realpath(projectRoot);
+    const fpHash = fingerprintHash(request.fingerprint);
+    const widthChange = dimensionChanged(request.currentWidth, request.width);
+    const heightChange = dimensionChanged(request.currentHeight, request.height);
+    const textChange = request.previewText !== null && request.previewText !== undefined && request.originalText !== undefined && request.previewText !== request.originalText;
+    const styleChange = Boolean(request.previewStyles && Object.entries(request.previewStyles).some(([property, value]) => value !== (request.originalStyles?.[property] ?? "")));
+    if (!widthChange && !heightChange && !textChange && !styleChange) return null;
+
+    if (options.framework === "react" && await projectUsesTailwind(root, options.styling)) {
+      const jsx = new Map<string, { text: string; nodes: JsxNode[] }>();
+      for (const file of (await files(root)).filter((entry) => isMarkupSourceFile(entry))) {
+        const text = await readFile(file, "utf8");
+        jsx.set(file, { text, nodes: jsxNodes(text) });
+      }
+      const target = findUniqueJsxTarget(jsx, request.fingerprint);
+      if (!target) return null;
+
+      const { file, text, node } = target;
+      const relativePath = path.relative(root, file).split(path.sep).join("/");
+      let nextText = text;
+      const changedFiles = new Set<string>();
+
+      if (widthChange || heightChange || styleChange) {
+        const utilityStyles: Record<string, string> = {};
+        if (widthChange) utilityStyles.width = tailwindToken(request.width);
+        if (heightChange && validDimension(request.height)) utilityStyles.height = tailwindHeightToken(request.height!);
+        if (request.previewStyles) {
+          for (const [property, value] of Object.entries(request.previewStyles)) {
+            const originalValue = request.originalStyles?.[property] ?? "";
+            if (!value || value === originalValue) continue;
+            if (property === "color") utilityStyles.color = tailwindTextColorToken(value);
+          }
+        }
+        if (Object.keys(utilityStyles).length) {
+          let classValue = node.classLiteral?.value ?? "";
+          if (utilityStyles.width) classValue = upsertTailwindUtility(classValue, tailwindWidthPattern, utilityStyles.width);
+          if (utilityStyles.height) classValue = upsertTailwindUtility(classValue, tailwindHeightPattern, utilityStyles.height);
+          if (utilityStyles.color) classValue = upsertTailwindUtility(classValue, tailwindTextColorPattern, utilityStyles.color);
+          if (node.classLiteral) {
+            nextText = `${nextText.slice(0, node.classLiteral.start)}${classValue}${nextText.slice(node.classLiteral.end)}`;
+          } else {
+            const updatedTag = injectClassNameIntoOpeningTag(node.source, classValue);
+            nextText = `${nextText.slice(0, node.start)}${updatedTag}${nextText.slice(node.end)}`;
+          }
+          changedFiles.add(relativePath);
+        }
+      }
+
+      if (textChange) {
+        const windowStart = node.start;
+        const windowEnd = node.end + (nextText.length - text.length);
+        const literal = new RegExp(`>(\\s*)${escapeRegExp(request.originalText!)}(\\s*)<`).exec(nextText.slice(windowStart, windowEnd));
+        if (!literal || request.previewText!.includes("<")) {
+          if (!changedFiles.size) return null;
+        } else {
+          const innerStart = windowStart + literal.index! + 1 + (literal[1]?.length ?? 0);
+          const innerEnd = innerStart + request.originalText!.length;
+          nextText = `${nextText.slice(0, innerStart)}${request.previewText}${nextText.slice(innerEnd)}`;
+          changedFiles.add(relativePath);
+        }
+      }
+
+      if (!changedFiles.size || nextText === text) return null;
+      await writeFile(file, nextText);
+      const mappingMs = performance.now() - mappingStarted;
+      const evidence = `Promoted unmapped Tailwind utilities in ${[...changedFiles].join(" + ")}`;
+      return {
+        status: "applied",
+        code: "SOURCE_CLASS_PROMOTED",
+        mapping: {
+          confidence: "exact",
+          evidence,
+          candidates: [...changedFiles].map((changedPath) => ({ path: changedPath, evidence: "Tailwind className", line: lineAt(text, node.start) })),
+          requiresImpactApproval: false,
+        },
+        mappingMs,
+      };
+    }
+
+    if (options.framework === "react" && options.styling !== "css-modules") {
+      const jsx = new Map<string, { text: string; nodes: JsxNode[] }>();
+      for (const file of (await files(root)).filter((entry) => isMarkupSourceFile(entry))) {
+        const text = await readFile(file, "utf8");
+        jsx.set(file, { text, nodes: jsxNodes(text) });
+      }
+      const target = findUniqueJsxTarget(jsx, request.fingerprint);
+      if (!target || target.node.classExpression) return null;
+
+      const { file, text, node } = target;
+      const { selector, className } = promotedSelector(request.fingerprint, fpHash);
+      const styles: Record<string, string> = {};
+      if (widthChange) styles.width = `${request.width}px`;
+      if (heightChange) styles.height = `${request.height}px`;
+      if (request.previewStyles) {
+        for (const [property, value] of Object.entries(request.previewStyles)) {
+          if (value && value !== (request.originalStyles?.[property] ?? "")) styles[property] = value;
+        }
+      }
+
+      const cssFile = Object.keys(styles).length ? await reactCssTarget(root, file, text) : null;
+      if (Object.keys(styles).length && !cssFile) return null;
+      let nextText = text;
+      let delta = 0;
+      if (className) {
+        const openingTag = injectClassNameIntoOpeningTag(node.source, className);
+        delta = openingTag.length - node.source.length;
+        nextText = `${nextText.slice(0, node.start)}${openingTag}${nextText.slice(node.end)}`;
+      }
+      if (textChange) {
+        const windowEnd = node.end + delta;
+        const literal = new RegExp(`>(\\s*)${escapeRegExp(request.originalText!)}(\\s*)<`).exec(nextText.slice(node.start, windowEnd));
+        if (!literal || request.previewText!.includes("<")) return null;
+        const start = node.start + literal.index! + 1 + (literal[1]?.length ?? 0);
+        nextText = `${nextText.slice(0, start)}${request.previewText}${nextText.slice(start + request.originalText!.length)}`;
+      }
+
+      const changedFiles: string[] = [];
+      if (cssFile) {
+        const css = await readFile(cssFile, "utf8");
+        await writeFile(cssFile, upsertPromotedCssRule(css, selector, styles));
+        changedFiles.push(path.relative(root, cssFile).split(path.sep).join("/"));
+      }
+      if (nextText !== text) {
+        await writeFile(file, nextText);
+        changedFiles.push(path.relative(root, file).split(path.sep).join("/"));
+      }
+      if (!changedFiles.length) return null;
+      const evidence = `Promoted unmapped edit to ${selector} in ${changedFiles.join(" + ")}`;
+      return {
+        status: "applied",
+        code: "SOURCE_CLASS_PROMOTED",
+        mapping: {
+          confidence: "exact",
+          evidence,
+          candidates: changedFiles.map((changedPath) => ({ path: changedPath, evidence: selector, line: 1 })),
+          requiresImpactApproval: false,
+        },
+        mappingMs: performance.now() - mappingStarted,
+      };
+    }
+
+    if (options.framework !== "vanilla") return null;
+
+    const styles: Record<string, string> = {};
+    if (widthChange) styles.width = `${request.width}px`;
+    if (heightChange) styles.height = `${request.height}px`;
+    if (request.previewStyles) {
+      for (const [property, value] of Object.entries(request.previewStyles)) {
+        const originalValue = request.originalStyles?.[property] ?? "";
+        if (value && value !== originalValue) styles[property] = value;
+      }
+    }
+
+    const { selector, className } = promotedSelector(request.fingerprint, fpHash);
+    const markup = (await files(root)).filter((file) => /\.html$/i.test(file) || /\.blade\.php$/i.test(file));
+    const targets = [];
+    for (const file of markup) {
+      const html = await readFile(file, "utf8");
+      const relativePath = path.relative(root, file).split(path.sep).join("/");
+      const target = findVanillaHtmlTarget(html, relativePath, request.fingerprint, request.originalText);
+      if (target) targets.push({ file, html, target });
+    }
+    if (targets.length !== 1) return null;
+    const { file: htmlFile, html, target } = targets[0]!;
+    const htmlPath = target.relativePath;
+
+    let nextHtml = html;
+    if (target) {
+      let tagDelta = 0;
+      if (className) {
+        const updatedTag = injectClassIntoOpeningTag(target.openingTag, className);
+        tagDelta = updatedTag.length - target.openingTag.length;
+        nextHtml = `${nextHtml.slice(0, target.matchIndex)}${updatedTag}${nextHtml.slice(target.matchIndex + target.openingTag.length)}`;
+      }
+      if (textChange) {
+        const innerStart = target.innerStart + tagDelta;
+        const innerEnd = target.innerEnd + tagDelta;
+        const before = nextHtml.slice(innerStart, innerEnd);
+        if (before.replace(/\s+/g, " ").trim() === request.originalText!.replace(/\s+/g, " ").trim()) {
+          nextHtml = `${nextHtml.slice(0, innerStart)}${request.previewText}${nextHtml.slice(innerEnd)}`;
+        }
+      }
+    }
+
+    const styleTarget = resolveVanillaStyleTarget(htmlPath, html);
+    const changedFiles: string[] = [];
+    if (Object.keys(styles).length) {
+      if (styleTarget.kind === "file") {
+        const cssPath = path.join(root, styleTarget.relativePath);
+        let css = "";
+        try { css = await readFile(cssPath, "utf8"); } catch { /* ponytail: create on first promotion */ }
+        const nextCss = upsertPromotedCssRule(css, selector, styles);
+        await mkdir(path.dirname(cssPath), { recursive: true });
+        await writeFile(cssPath, nextCss);
+        changedFiles.push(styleTarget.relativePath);
+        if (styleTarget.relativePath === "style.css" && !/<link\b[^>]*\brel\s*=\s*["']stylesheet["']/i.test(html)) {
+          nextHtml = ensureStylesheetLink(nextHtml);
+        }
+      } else {
+        const body = html.slice(styleTarget.bodyStart, styleTarget.bodyEnd);
+        const nextBody = upsertPromotedCssRule(body, selector, styles);
+        nextHtml = `${nextHtml.slice(0, styleTarget.bodyStart)}${nextBody}${nextHtml.slice(styleTarget.bodyEnd)}`;
+      }
+    }
+
+    if (nextHtml !== html) {
+      await writeFile(htmlFile, nextHtml);
+      changedFiles.push(htmlPath);
+    }
+    if (!changedFiles.length) return null;
+
+    const mappingMs = performance.now() - mappingStarted;
+    const evidence = `Promoted unmapped edit to ${selector} in ${changedFiles.join(" + ")}`;
+    return {
+      status: "applied",
+      code: "SOURCE_CLASS_PROMOTED",
+      mapping: {
+        confidence: "exact",
+        evidence,
+        candidates: changedFiles.map((file) => ({ path: file, evidence: selector, line: 1 })),
+        requiresImpactApproval: false,
+      },
+      mappingMs,
+    };
+  }
+
   async function applyOverrides(request: WidthEditRequest): Promise<EditResult> {
     const mappingStarted = performance.now();
     const root = await realpath(projectRoot);
@@ -920,17 +1333,27 @@ export function createSourceEditor(options: SourceEditorOptions) {
     }
     const mappingMs = performance.now() - mappingStarted;
     if (!parts.length) {
-      return { status: "rejected", code: styleChange ? "STYLE_UNMAPPED" : "NO_CHANGES", mapping: { confidence: "not-mapped", evidence: styleChange ? "STYLE_UNMAPPED" : "NO_CHANGES", candidates: [], requiresImpactApproval: false }, mappingMs };
+      if (widthChange || heightChange || textChange || styleChange) {
+        const promoted = await promoteUnmappedToSource(request);
+        if (promoted) return promoted;
+        return applyOverrides(request);
+      }
+      return { status: "rejected", code: "NO_CHANGES", mapping: { confidence: "not-mapped", evidence: "NO_CHANGES", candidates: [], requiresImpactApproval: false }, mappingMs };
     }
     const rank = (value: MappingConfidence) => ({ exact: 0, probable: 1, ambiguous: 2, "not-mapped": 3 }[value]);
     const worst = parts.reduce((left, right) => rank(right.confidence) > rank(left.confidence) ? right : left);
     const applyAllowed = worst.confidence === "exact" || (worst.confidence === "probable" && request.sharedImpactAccepted);
     const overrideAllowed = (mapping: MappingResult) => {
+      if (mapping.confidence === "probable" && mapping.requiresImpactApproval && !request.sharedImpactAccepted) return true;
       if (mapping.confidence !== "not-mapped" && mapping.confidence !== "ambiguous") return false;
       return !/dynamic|not safely editable|_invalid/i.test(mapping.evidence);
     };
     if (!applyAllowed || parts.some((part) => !part.plan)) {
-      if ((widthChange || heightChange || textChange || styleChange) && overrideAllowed(worst)) return applyOverrides(request);
+      if ((widthChange || heightChange || textChange || styleChange) && overrideAllowed(worst)) {
+        const promoted = await promoteUnmappedToSource(request);
+        if (promoted) return promoted;
+        return applyOverrides(request);
+      }
       return { status: "rejected", code: worst.evidence, mapping: worst, mappingMs };
     }
     const key = await realpath(projectRoot);

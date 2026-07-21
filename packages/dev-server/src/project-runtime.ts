@@ -189,11 +189,19 @@ function devCommandVector(options: ProjectRuntimeOptions): SpawnVector | null {
   return { executable: executable!, args: [...args] };
 }
 
-async function probe(url: string): Promise<boolean> {
+function looksLikeDirectoryListing(body: string): boolean {
+  const sample = body.slice(0, 8_192).toLowerCase();
+  return sample.includes("directory listing for")
+    || sample.includes("<title>index of")
+    || /<h1>\s*index of\s/i.test(sample)
+    || (sample.includes("parent directory") && sample.includes("<pre>"));
+}
+
+async function probeAttachable(url: string): Promise<boolean> {
   try {
     const response = await fetch(url, { signal: AbortSignal.timeout(500) });
-    await response.arrayBuffer();
-    return response.ok;
+    if (!response.ok) return false;
+    return !looksLikeDirectoryListing(await response.text());
   } catch { return false; }
 }
 
@@ -203,7 +211,7 @@ export async function findRunningDevServer(ports: readonly number[]): Promise<st
     if (seen.has(port)) continue;
     seen.add(port);
     const candidate = `http://127.0.0.1:${port}/`;
-    if (await probe(candidate)) return candidate;
+    if (await probeAttachable(candidate)) return candidate;
   }
   return null;
 }
@@ -262,7 +270,7 @@ async function startCommandProject(descriptor: ProjectDescriptor, options: Proje
       throw new ProjectError("DEV_SERVER_EXITED", `Development command exited with code ${child.exitCode}.${logTail(stdout, stderr) ? ` Log tail: ${logTail(stdout, stderr)}` : ""} Source files were not changed; fix the command and retry.`);
     }
     for (const candidate of candidates) {
-      if (await probe(candidate)) {
+      if (await probeAttachable(candidate)) {
         ready = true;
         options.onProgress?.(`Development server ready at ${candidate}`);
         return {
@@ -299,6 +307,7 @@ export async function resolveDevServer(descriptor: ProjectDescriptor, options: P
     options.onProgress?.(`Attaching to ${options.attachUrl}`);
     return attachProject(options.attachUrl);
   }
+  if (descriptor.framework === "vanilla" && !descriptor.command && !options.devCommand?.length) return startStaticProject(descriptor, options);
   const ports = probePortList(options);
   if (ports.length) {
     const attached = await findRunningDevServer(ports);
@@ -307,7 +316,6 @@ export async function resolveDevServer(descriptor: ProjectDescriptor, options: P
       return attachProject(attached);
     }
   }
-  if (descriptor.framework === "vanilla" && !descriptor.command && !options.devCommand?.length) return startStaticProject(descriptor, options);
   if (!descriptor.command && !options.devCommand?.length) throw new ProjectError("DEVELOPMENT_COMMAND_UNKNOWN", "No validated project command is available.");
   return startCommandProject(descriptor, options);
 }
@@ -319,7 +327,7 @@ export async function startProject(descriptor: ProjectDescriptor, options: Proje
 export async function attachProject(url: string): Promise<ProjectRuntime> {
   const verified = loopbackUrl(url);
   if (!verified) throw new ProjectError("ATTACH_URL_INVALID", `Only an explicit loopback HTTP URL can be attached: ${url}.`);
-  if (!(await probe(verified))) throw new ProjectError("ATTACH_NOT_READY", `The requested local server did not return successful HTTP: ${verified}.`);
+  if (!(await probeAttachable(verified))) throw new ProjectError("ATTACH_NOT_READY", `The requested local server did not return a usable HTML page: ${verified}. Directory listings and empty responses are rejected.`);
   return {
     url: verified,
     ownership: false,

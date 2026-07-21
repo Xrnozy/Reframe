@@ -17,18 +17,18 @@ export type ProjectFramework =
   | "unknown";
 export type ProjectStyling = "plain-css" | "css-modules" | "tailwind" | "unknown";
 
-const sourceEditableFrameworks = new Set<ProjectFramework>(["vanilla", "react-vite", "react-vite-typescript", "laravel"]);
-const previewableFrameworks = new Set<ProjectFramework>(["next", "nuxt", "angular", "astro", "svelte", "sveltekit", "vue"]);
+const sourceEditableFrameworks = new Set<ProjectFramework>(["vanilla", "react-vite", "react-vite-typescript", "next", "laravel"]);
+const previewableFrameworks = new Set<ProjectFramework>(["nuxt", "angular", "astro", "svelte", "sveltekit", "vue"]);
 
 export function proxyFramework(framework: ProjectFramework): "react" | "vanilla" {
-  return framework === "react-vite" || framework === "react-vite-typescript" ? "react" : "vanilla";
+  return framework === "react-vite" || framework === "react-vite-typescript" || framework === "next" ? "react" : "vanilla";
 }
 
 export function frameworkLabel(framework: ProjectFramework): string {
   switch (framework) {
     case "react-vite": return "React + Vite";
     case "react-vite-typescript": return "React + Vite + TypeScript";
-    case "next": return "Next.js (preview)";
+    case "next": return "Next.js";
     case "nuxt": return "Nuxt (preview)";
     case "angular": return "Angular (preview)";
     case "astro": return "Astro (preview)";
@@ -404,7 +404,15 @@ export async function detectProject(inputRoot: string, options: DetectProjectOpt
   const hasArtisan = await exists(path.join(root, "artisan"));
   const detected = await detectFrameworkAndStyle(root, pkg, options);
   const scriptNames = Object.keys(pkg?.scripts ?? {});
-  if (detected.framework === "unknown" && pkg && !options.frameworkChoice && scriptNames.length === 0 && !(await exists(path.join(root, "index.html")))) {
+  const hasAppEntry = await exists(path.join(root, "index.html"));
+  const hasDevScript = ["dev", "start", "serve"].some((name) => scriptNames.includes(name));
+  if (pkg && Array.isArray((pkg as PackageFile & { workspaces?: unknown }).workspaces) && !hasAppEntry && !hasDevScript && !options.devCommandOverride && !options.commandChoice) {
+    throw new ProjectError("PROJECT_ROOT_INVALID", `Run Reframe from a project directory (for example demo/vanilla-demo), not the monorepo root (${root}).`);
+  }
+  if (options.frameworkChoice === "vanilla" && !hasAppEntry) {
+    throw new ProjectError("VANILLA_INDEX_MISSING", `No index.html found in ${root}. Run reframe from the directory that contains index.html (for example demo/vanilla-demo).`);
+  }
+  if (detected.framework === "unknown" && pkg && !options.frameworkChoice && scriptNames.length === 0 && !hasAppEntry) {
     throw new ProjectError("PROJECT_FRAMEWORK_UNKNOWN", `Reframe could not determine the project framework. Select one explicitly before startup.`, [...frameworkChoices]);
   }
   if (detected.framework === "unknown" && !pkg) {
@@ -438,7 +446,7 @@ export function stackLimitations(framework: ProjectFramework, styling: ProjectSt
   if (previewableFrameworks.has(framework) && !sourceEditableFrameworks.has(framework)) {
     limits.push(`${frameworkLabel(framework)} is preview-only; source writes are disabled.`);
   }
-  if (framework === "laravel") limits.push("Blade templates are read-only; CSS and Vite assets are editable when mapped.");
+  if (framework === "laravel") limits.push("Dynamic Blade expressions fall back to overrides.css when no unique static source owner exists.");
   if (["vue", "svelte", "sveltekit", "nuxt", "angular", "astro"].includes(framework)) limits.push("Scoped Vue/Svelte/Angular/Astro styles and single-file components fall back to overrides.css when unmapped.");
   if (styling === "css-modules") limits.push("CSS module class names may require overrides.css when mapping is ambiguous.");
   return limits;

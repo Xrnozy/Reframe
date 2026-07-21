@@ -129,7 +129,7 @@ export interface MappingRequestMessage extends MessageBase {
   sharedImpactAccepted: boolean;
 }
 export interface HistoryRequestMessage extends MessageBase { type: "history:request"; route?: string; viewport?: { width: number; height: number } }
-export interface HistoryRestoreMessage extends MessageBase { type: "history:restore" }
+export interface HistoryRestoreMessage extends MessageBase { type: "history:restore"; checkpointId?: string }
 export interface AiGenerateMessage extends MessageBase {
   type: "ai:generate";
   selectionId: string;
@@ -138,6 +138,7 @@ export interface AiGenerateMessage extends MessageBase {
   instruction: string;
   referencePlanId?: string;
   conversationId?: string;
+  imageAttachmentId?: string;
 }
 export interface AiActionMessage extends MessageBase {
   type: "ai:action";
@@ -173,6 +174,7 @@ export interface EditAcceptedMessage extends MessageBase {
   generation: number;
   checkpointId?: string;
   visualComplete?: boolean;
+  code?: string;
 }
 
 export interface MappingResultMessage extends MessageBase {
@@ -338,7 +340,8 @@ export function validateClientMessage(value: unknown, context: { sessionId: stri
     case "ping":
     case "pong":
     case "history:restore":
-      if (!exact(value, ["type", "protocol", "correlationId", "sessionId"])) return { ok: false, code: "MESSAGE_SCHEMA_INVALID" };
+      if (exact(value, ["type", "protocol", "correlationId", "sessionId"])) break;
+      if (!exact(value, ["type", "protocol", "correlationId", "sessionId", "checkpointId"]) || !identifier(value.checkpointId)) return { ok: false, code: "MESSAGE_SCHEMA_INVALID" };
       break;
     case "history:request":
       if (exact(value, ["type", "protocol", "correlationId", "sessionId"])) break;
@@ -366,9 +369,11 @@ export function validateClientMessage(value: unknown, context: { sessionId: stri
     case "mapping:request":
       if (!["type", "protocol", "correlationId", "sessionId", "selectionId", "generation", "currentWidth", "width", "currentHeight", "height", "previewText", "fingerprint", "breakpoint", "sharedImpactAccepted"].every((key) => key in value) || !identifier(value.selectionId) || !integer(value.generation) || !width(value.currentWidth) || !width(value.width) || !width(value.currentHeight) || !width(value.height) || (value.previewText !== null && !boundedText(value.previewText, 4_096)) || !styleMap(value.previewStyles) || !fingerprint(value.fingerprint) || (value.breakpoint !== null && !identifier(value.breakpoint)) || typeof value.sharedImpactAccepted !== "boolean") return { ok: false, code: "MESSAGE_SCHEMA_INVALID" };
       break;
-    case "ai:generate":
-      if (!(exact(value, ["type", "protocol", "correlationId", "sessionId", "selectionId", "generation", "generationId", "instruction"]) || exact(value, ["type", "protocol", "correlationId", "sessionId", "selectionId", "generation", "generationId", "instruction", "referencePlanId"]) || exact(value, ["type", "protocol", "correlationId", "sessionId", "selectionId", "generation", "generationId", "instruction", "conversationId"]) || exact(value, ["type", "protocol", "correlationId", "sessionId", "selectionId", "generation", "generationId", "instruction", "referencePlanId", "conversationId"])) || !identifier(value.selectionId) || !integer(value.generation) || !identifier(value.generationId) || !boundedText(value.instruction, 2_000) || !value.instruction.trim() || (value.referencePlanId !== undefined && !identifier(value.referencePlanId)) || (value.conversationId !== undefined && !boundedText(value.conversationId, 256))) return { ok: false, code: "MESSAGE_SCHEMA_INVALID" };
+    case "ai:generate": {
+      const aiGenerateKeys = new Set(["type", "protocol", "correlationId", "sessionId", "selectionId", "generation", "generationId", "instruction", "referencePlanId", "conversationId", "imageAttachmentId"]);
+      if (!record(value) || ![...Object.keys(value)].every((key) => aiGenerateKeys.has(key)) || !exact(value, ["type", "protocol", "correlationId", "sessionId", "selectionId", "generation", "generationId", "instruction"]) || !identifier(value.selectionId) || !integer(value.generation) || !identifier(value.generationId) || !boundedText(value.instruction, 2_000) || !value.instruction.trim() || (value.referencePlanId !== undefined && !identifier(value.referencePlanId)) || (value.conversationId !== undefined && !boundedText(value.conversationId, 256)) || (value.imageAttachmentId !== undefined && !identifier(value.imageAttachmentId))) return { ok: false, code: "MESSAGE_SCHEMA_INVALID" };
       break;
+    }
     case "ai:action":
       if (!exact(value, ["type", "protocol", "correlationId", "sessionId", "generationId", "action", "instruction"]) || !identifier(value.generationId) || !["accept", "refine", "compare", "reject", "stop", "dismiss"].includes(String(value.action)) || !boundedText(value.instruction, 2_000) || (value.action === "refine" && !value.instruction.trim())) return { ok: false, code: "MESSAGE_SCHEMA_INVALID" };
       break;
