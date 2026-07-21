@@ -28,6 +28,56 @@ Unlike design tools that produce mockups, or AI generators that spin up isolated
 
 ---
 
+## Codex & GPT-5.6
+
+Reframe is built for [OpenAI Build Week](https://openai.devpost.com) and uses **OpenAI Codex** as its AI editing engine. Codex is not a bolt-on chat box — it receives repository-aware, design-system-aware context from the running app and returns scoped source proposals you review before anything is written to disk.
+
+### What Codex does (and what it does not)
+
+Reframe splits visual editing into two paths:
+
+| Path | When to use | How it works |
+| --- | --- | --- |
+| **Direct Edit** | Safe, predictable changes — resize, restyle, move, visibility, copy styles | Deterministic transforms in `@reframe/dev-server`; no AI call |
+| **Codex Edit** | Structural or intent-aware changes — new sections, layout redesigns, responsive refactors, component extraction, cross-file updates | Natural-language **Generate** panel → Codex task → review → accept |
+
+Codex handles the changes Direct Edit should not: complex structure, ambiguous layout decisions, and edits that may touch related files. Trivial CSS tweaks belong in Direct Edit, not a Codex round-trip.
+
+### Structured context, not just a prompt
+
+Every Codex Edit is backed by an **Element Context Packet** assembled by the dev server (`buildElementContextPacket` in `@reframe/dev-server`). The packet is JSON sent to Codex on stdin — not a bare CSS selector. It includes:
+
+- **Selected element** — DOM fingerprint, route, and mapping to a source file
+- **Bounded source** — a hash-verified snippet around the mapped range (stale-file detection before write)
+- **Project context** — framework, styling method (plain CSS, CSS Modules, Tailwind, etc.)
+- **Visual state** — classes, computed styles, and screenshot capture status (selected, surrounding, full-page)
+- **Design DNA** — detected tokens, components, and design rules from the project
+- **User instruction** — the prompt from the Generate panel
+- **Optional attachments** — pasted reference images, frozen adaptation plans, and `@file` references
+
+Codex runs via the local **Codex CLI** (`codex exec`) with a strict JSON output schema: one file change, grounded to the packet's `expectedHash` and `before` snippet. You can resume an existing local Codex conversation from the Generate panel's task picker. An optional API fallback (`REFRAME_AI_PROVIDER=api`) calls the OpenAI Responses API with **GPT-5.6** (`gpt-5.6-terra`).
+
+Design DNA analysis can also invoke Codex when `REFRAME_DESIGN_DNA_AI=1` is set, so token and component detection benefits from the same repository context.
+
+### User flow: `npx reframe` → Generate
+
+1. Run `npx reframe` in your project — Reframe proxies your dev server and injects the editing UI.
+2. **Select an element** with an exact or probable source mapping.
+3. Open the **Generate** panel (toolbar) and describe the structural change you want.
+4. Optionally pick an existing **Codex task** to continue a conversation, or attach a reference image.
+5. Reframe sends the Element Context Packet; Codex returns a proposal.
+6. **Review** changed files, screenshots, and Design DNA conflicts — then accept, reject, or refine.
+
+Authentication uses your existing Codex login (`codex login`); no API key is required for local mode. See [AI authentication](#ai-authentication) below.
+
+### How this repo was built during Build Week
+
+Reframe itself was implemented in phased milestones (`spec/implementation-plan.md`, Phases 0–12). Phase status records show a **Codex implementation agent** driving each phase — spec-first, one boundary at a time, with Vitest/Playwright gates before moving on. The product spec (`spec/description/reframe-spec.md`) and `AGENTS.md` repository guidance were the source of truth; Codex/GPT were used to implement Reframe's packages (`@reframe/cli`, `@reframe/dev-server`, `@reframe/browser-client`, `@reframe/shared`), not to generate throwaway demo apps in isolation.
+
+In short: **Codex built Reframe; Reframe puts Codex inside your real project with structured browser and repo context.**
+
+---
+
 ## Why Reframe?
 
 Most UI tools fall into two camps: **design canvases** that never touch your repo, or **AI generators** that write new files in a separate environment. Reframe is built for developers who already have a project running locally and want visual editing without losing the connection to source code, design rules, and version control.
@@ -62,6 +112,7 @@ Most UI tools fall into two camps: **design canvases** that never touch your rep
 ## Table of Contents
 
 - [About](#about)
+- [Codex & GPT-5.6](#codex--gpt-56)
 - [Why Reframe?](#why-reframe)
 - [Ideal for](#ideal-for)
 - [Features](#features)
